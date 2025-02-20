@@ -1,0 +1,28 @@
+[package]
+name = "node"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bincode = "1"
+config = { package = "config", git="https://github.com/akhilsb/acss-rs.git"}
+
+avid = {package= "avid", path="../protocol/avid"}
+
+protocol = { package = "protocol", path="../protocol"}
+util = { package = "util", git="https://github.com/akhilsb/acss-rs.git"}
+anyhow = "1"
+types = { package = "types", git="https://github.com/akhilsb/acss-rs.git"}
+clap = {version = "2", features = ["yaml"]}
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3.8"
+log="*"
+simple_logger="*"
+fnv = "1.0.3"
+signal-hook = "0"
+
+network = { package = "network", git = "https://github.com/akhilsb/libnet-rs.git" }
+async-trait = "0"
+futures-util = "0"

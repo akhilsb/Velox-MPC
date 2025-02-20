@@ -1,0 +1,40 @@
+[package]
+name = "protocol"
+version = "0.1.0"
+authors = ["akhilsb <akhilsai2712@gmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+config = { package = "config", git="https://github.com/akhilsb/acss-rs.git"}
+types = { package = "types", git="https://github.com/akhilsb/acss-rs.git"}
+crypto = { package = "crypto", git="https://github.com/akhilsb/acss-rs.git"}
+tokio = { version = "1.0", features = ["full"] }
+futures = "^0.3"
+bytes = "1.0"
+tokio-util = "0.6"
+tokio-stream = "0.1"
+serde = "1.0.70"
+serde_json = "1.0" # For JSON serialization
+log="*"
+priority-queue="1"
+fnv = "1"
+reed-solomon-erasure = "4.0"
+num-traits = "0.2.19"
+
+
+# Local randomness
+rand = "0.6"
+rand_core = "0.6.4"
+
+# Big Integers for field operations
+num-bigint-dig = "0.4"
+num-bigint = {version = "0.2.6", features = ["rand"]}
+
+network = { package = "network", git = "https://github.com/akhilsb/libnet-rs.git" }
+async-trait = "0"
+futures-util = "0"
+
+# Polynomial Operations with FFT
+lambdaworks-math = "0.11.0"
