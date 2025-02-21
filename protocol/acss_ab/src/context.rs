@@ -24,6 +24,8 @@ use types::{Replica};
 
 use crypto::aes_hash::HashState;
 
+use crate::protocol::ACSSABState;
+
 pub struct Context {
     /// Data context
     pub num_nodes: usize,
@@ -41,7 +43,7 @@ pub struct Context {
     exit_rx: oneshot::Receiver<()>,
     
     // Each Reliable Broadcast instance is associated with a Unique Identifier. 
-    pub avid_context: HashMap<usize, usize>,
+    pub acss_ab_state: ACSSABState,
 
     // Maximum number of RBCs that can be initiated by a node. Keep this as an identifier for RBC service. 
     pub threshold: usize, 
@@ -51,7 +53,7 @@ pub struct Context {
     pub num_threads: usize,
     /// Input and output message queues for Reliable Broadcast
     pub inp_acss: Receiver<Vec<LargeFieldSer>>,
-    pub out_acss: Sender<Vec<(Replica,Option<Vec<LargeFieldSer>>)>>,
+    pub out_acss: Sender<(Replica,Option<Vec<LargeFieldSer>>)>,
 
     /// CTRBC input and output channels
     pub inp_ctrbc: Sender<Vec<u8>>,
@@ -59,23 +61,29 @@ pub struct Context {
 
     /// AVID input and output channels
     pub inp_avid_channel: Sender<Vec<(Replica,Option<Vec<u8>>)>>,
-    pub recv_out_avid: Receiver<(Replica,Option<Vec<u8>>)>
+    pub recv_out_avid: Receiver<(Replica,Option<Vec<u8>>)>,
+
+    /// RA input and output channels
+    pub inp_ra_channel: Sender<(usize,usize,usize)>,
+    pub recv_out_ra: Receiver<(usize,Replica,usize)>,
 }
 
 impl Context {
     pub fn spawn(
         config: Node,
         input_msgs: Receiver<Vec<LargeFieldSer>>, 
-        output_msgs: Sender<Vec<(Replica,Option<Vec<LargeFieldSer>>)>>, 
+        output_msgs: Sender<(Replica,Option<Vec<LargeFieldSer>>)>, 
         _byz: bool
     ) -> anyhow::Result<oneshot::Sender<()>> {
         // Add a separate configuration for RBC service. 
 
         let mut ctrbc_config = config.clone();
         let mut avid_config = config.clone();
+        let mut ra_config = config.clone();
 
         let port_rbc: u16 = 150;
         let port_avid: u16 = 300;
+        let port_ra: u16 = 450;
 
         let mut consensus_addrs: FnvHashMap<Replica, SocketAddr> = FnvHashMap::default();
         for (replica, address) in config.net_map.iter() {
@@ -83,9 +91,11 @@ impl Context {
 
             let ctrbc_address: SocketAddr = SocketAddr::new(address.ip(), address.port() + port_rbc);
             let avid_address: SocketAddr = SocketAddr::new(address.ip(), address.port() + port_avid);
+            let ra_address: SocketAddr = SocketAddr::new(address.ip(), address.port() + port_ra);
 
             ctrbc_config.net_map.insert(*replica, ctrbc_address.to_string());
             avid_config.net_map.insert(*replica, avid_address.to_string());
+            ra_config.net_map.insert(*replica, ra_address.to_string());
 
             consensus_addrs.insert(*replica, SocketAddr::from(address.clone()));
 
@@ -106,6 +116,9 @@ impl Context {
 
         let (avid_req_send_channel, avid_req_recv_channel) = channel(10000);
         let (avid_out_send_channel, avid_out_recv_channel) = channel(10000);
+        
+        let (ra_req_send_channel, ra_req_recv_channel) = channel(10000);
+        let (ra_out_send_channel, ra_out_recv_channel) = channel(10000);
         tokio::spawn(async move {
             let mut c = Context {
                 num_nodes: config.num_nodes,
@@ -117,7 +130,7 @@ impl Context {
                 cancel_handlers: HashMap::default(),
                 exit_rx: exit_rx,
                 
-                avid_context:HashMap::default(),
+                acss_ab_state: ACSSABState::new(),
                 threshold: 10000,
 
                 max_id: rbc_start_id,
@@ -130,7 +143,10 @@ impl Context {
                 recv_out_ctrbc: ctrbc_out_recv_channel,
 
                 inp_avid_channel: avid_req_send_channel,
-                recv_out_avid: avid_out_recv_channel
+                recv_out_avid: avid_out_recv_channel,
+
+                inp_ra_channel: ra_req_send_channel,
+                recv_out_ra: ra_out_recv_channel,
             };
 
             // Populate secret keys from config
@@ -158,37 +174,18 @@ impl Context {
             false
         );
 
+        let _status = ra::Context::spawn(
+            ra_config,
+            ra_req_recv_channel,
+            ra_out_send_channel,
+            false
+        );
+
         let mut signals = Signals::new(&[SIGINT, SIGTERM])?;
         signals.forever().next();
         log::error!("Received termination signal");
         Ok(exit_tx)
     }
-
-    // pub async fn broadcast(&mut self, protmsg: ProtMsg) {
-    //     let sec_key_map = self.sec_key_map.clone();
-    //     for (replica, sec_key) in sec_key_map.into_iter() {
-    //         if self.byz && replica % 2 == 0 {
-    //             // Simulates a crash fault
-    //             continue;
-    //         }
-    //         if replica != self.myid {
-    //             let wrapper_msg = WrapperMsg::new(protmsg.clone(), self.myid, &sec_key.as_slice());
-    //             let cancel_handler: CancelHandler<Acknowledgement> =
-    //                 self.net_send.send(replica, wrapper_msg).await;
-    //             self.add_cancel_handler(cancel_handler);
-    //         }
-    //     }
-    // }
-
-    // pub fn add_cancel_handler(&mut self, canc: CancelHandler<Acknowledgement>) {
-    //     self.cancel_handlers.entry(0).or_default().push(canc);
-    // }
-
-    // pub async fn send(&mut self, replica: Replica, wrapper_msg: WrapperMsg<ProtMsg>) {
-    //     let cancel_handler: CancelHandler<Acknowledgement> =
-    //         self.net_send.send(replica, wrapper_msg).await;
-    //     self.add_cancel_handler(cancel_handler);
-    // }
 
     pub async fn run(&mut self) -> Result<()> {
         // The process starts listening to messages in this process.
@@ -217,7 +214,7 @@ impl Context {
                     let ctrbc_msg = ctrbc_msg.ok_or_else(||
                         anyhow!("Networking layer has closed")
                     )?;
-                    log::info!("Received request to start RBC from party {} messages at time: {:?}", ctrbc_msg.1, SystemTime::now()
+                    log::info!("Received termination event from CTRBC channel from party {} at time: {:?}", ctrbc_msg.1, SystemTime::now()
                                 .duration_since(UNIX_EPOCH)
                                 .unwrap()
                                 .as_millis());
@@ -231,12 +228,22 @@ impl Context {
                         log::error!("Received None from AVID for sender {}", avid_msg.0);
                         continue;
                     }
-                    log::info!("Received request to start AVID from party {} messages at time: {:?}", avid_msg.0, SystemTime::now()
+                    log::info!("Received termination event from AVID channel from party {} at time: {:?}", avid_msg.0, SystemTime::now()
                                 .duration_since(UNIX_EPOCH)
                                 .unwrap()
                                 .as_millis());
                     
                     self.handle_avid_termination(avid_msg.0,avid_msg.1.unwrap()).await;
+                },
+                ra_msg = self.recv_out_ra.recv() => {
+                    let ra_msg = ra_msg.ok_or_else(||
+                        anyhow!("Networking layer has closed")
+                    )?;
+                    log::info!("Received termination event from RA channel from party {} messages at time: {:?}", ra_msg.1, SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis());
+                    
                 }
             };
         }

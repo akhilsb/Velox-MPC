@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::{Mul, Add}};
+use std::{collections::HashMap, ops::{Mul, Add, Sub}};
 
 use crate::Context;
 use crypto::{hash::{do_hash, Hash}, aes_hash::MerkleTree, encrypt};
@@ -205,6 +205,77 @@ impl Context{
             }
         }
         (evaluations,coefficients)
+    }
+
+    pub async fn verify_shares(&mut self, sender: Replica){
+        if self.acss_ab_state.verification_status.contains_key(&sender){
+            // Already verified status, abandon sharing
+            return;
+        }
+
+        if !self.acss_ab_state.commitments.contains_key(&sender) || !self.acss_ab_state.shares.contains_key(&sender){
+            // AVID and CTRBC did not yet terminate
+            return;
+        }
+
+        let shares_full = self.acss_ab_state.shares.get(&sender).unwrap().clone();
+        let shares = shares_full.0;
+        let nonce_share = shares_full.1;
+        let blinding_nonce_share = shares_full.2;
+
+        let commitments_full = self.acss_ab_state.commitments.get(&sender).unwrap().clone();
+        let share_commitments = commitments_full.0;
+        let blinding_commitments = commitments_full.1;
+        let dzk_coeffs = commitments_full.2;
+        let blinding_comm_sender = blinding_commitments[sender].clone();
+
+        // First, verify share commitments
+        let mut appended_share = Vec::new();
+        for share in shares.clone().into_iter(){
+            appended_share.extend(share);
+        }
+        appended_share.extend(nonce_share);
+        let comm_hash = do_hash(appended_share.as_slice());
+        if comm_hash != share_commitments[sender]{
+            // Invalid share commitments
+            log::error!("Invalid share commitments from {}", sender);
+            self.acss_ab_state.verification_status.insert(sender, false);
+            return;
+        }
+
+        // Second, verify DZK proof
+        let shares_ff: Vec<LargeField> = shares.into_iter().map(|el| LargeField::from_bytes_be(el.as_slice()).unwrap()).collect();
+        let dzk_poly_coeffs: Vec<LargeField> = dzk_coeffs.into_iter().map(|el| LargeField::from_bytes_be(el.as_slice()).unwrap()).collect();
+        let dzk_poly = Polynomial::new(dzk_poly_coeffs.as_slice());
+        let dzk_point = dzk_poly.evaluate(&LargeField::new(UnsignedInteger::from((sender+1) as u64)));
+        
+        let share_root = MerkleTree::new(share_commitments, &self.hash_context).root();
+        let blinding_root = MerkleTree::new(blinding_commitments, &self.hash_context).root();
+        let root_comm = self.hash_context.hash_two(share_root, blinding_root);
+
+        // Generate DZK point
+        let root_comm_fe = LargeField::from_bytes_be(&root_comm).unwrap();
+        let mut agg_shares_point = LargeField::new(UnsignedInteger::from(0u64));
+        let mut root_comm_fe_mul = root_comm_fe.clone();
+        for share in shares_ff{
+            agg_shares_point = agg_shares_point.add(share.mul(root_comm_fe_mul));
+            root_comm_fe_mul = root_comm_fe_mul.mul(root_comm_fe.clone());
+        }
+
+        let blinding_poly_share_bytes = dzk_point.sub(agg_shares_point).to_bytes_be();
+        let blinding_hash = self.hash_context.hash_two(blinding_poly_share_bytes,blinding_nonce_share);
+        if blinding_hash != blinding_comm_sender{
+            // Invalid DZK proof
+            log::error!("Invalid DZK proof from {}", sender);
+            self.acss_ab_state.verification_status.insert(sender,false);
+            return;
+        }
+        
+        // If successful, add to verified list
+        self.acss_ab_state.verification_status.insert(sender,true);
+        // Start reliable agreement
+        let _status = self.inp_ra_channel.send((sender,1,1)).await;
+        self.check_termination(sender).await;
     }
 
     pub fn pseudorandom_lf(rng_seed: &[u8], num: usize)->Vec<LargeField>{

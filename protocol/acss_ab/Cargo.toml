@@ -10,6 +10,7 @@ protocol = { package = "protocol", path="../"}
 
 consensus = {package = "consensus", git="https://github.com/akhilsb/acss-rs.git"}
 ctrbc  = {package = "ctrbc", git= "https://github.com/akhilsb/acss-rs.git"}
+ra = {package = "ra", git= "https://github.com/akhilsb/acss-rs.git"}
 config = { package = "config", git="https://github.com/akhilsb/acss-rs.git"}
 types = { package = "types", git="https://github.com/akhilsb/acss-rs.git"}
 crypto = { package = "crypto", git="https://github.com/akhilsb/acss-rs.git"}
