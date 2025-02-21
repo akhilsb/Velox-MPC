@@ -22,7 +22,6 @@ impl Context {
             let merkle_tree = construct_merkle_tree(shards.clone(),&self.hash_context);
             roots_agg.extend(merkle_tree.root());
             avid_tree.push((msg.0,shards,merkle_tree));
-            
         }
         
         let concise_root = do_hash(&roots_agg.as_slice());
