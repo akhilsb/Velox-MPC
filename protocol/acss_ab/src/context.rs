@@ -8,7 +8,7 @@ use anyhow::{anyhow, Result};
 use config::Node;
 
 use fnv::FnvHashMap;
-use lambdaworks_math::{unsigned_integer::element::UnsignedInteger, traits::ByteConversion};
+use lambdaworks_math::{traits::ByteConversion};
 use network::{
     plaintcp::{CancelHandler},
     Acknowledgement,
@@ -29,7 +29,6 @@ pub struct Context {
     pub num_nodes: usize,
     pub myid: usize,
     pub num_faults: usize,
-    byz: bool,
 
     /// Secret Key map
     pub sec_key_map: HashMap<Replica, Vec<u8>>,
@@ -68,7 +67,7 @@ impl Context {
         config: Node,
         input_msgs: Receiver<Vec<LargeFieldSer>>, 
         output_msgs: Sender<Vec<(Replica,Option<Vec<LargeFieldSer>>)>>, 
-        byz: bool
+        _byz: bool
     ) -> anyhow::Result<oneshot::Sender<()>> {
         // Add a separate configuration for RBC service. 
 
@@ -113,7 +112,7 @@ impl Context {
                 sec_key_map: HashMap::default(),
                 hash_context: hashstate,
                 myid: config.id,
-                byz: byz,
+                
                 num_faults: config.num_faults,
                 cancel_handlers: HashMap::default(),
                 exit_rx: exit_rx,
@@ -224,6 +223,21 @@ impl Context {
                                 .as_millis());
                     self.handle_ctrbc_termination(ctrbc_msg.0,ctrbc_msg.1,ctrbc_msg.2).await;
                 },
+                avid_msg = self.recv_out_avid.recv() =>{
+                    let avid_msg = avid_msg.ok_or_else(||
+                        anyhow!("Networking layer has closed")
+                    )?;
+                    if avid_msg.1.is_none(){
+                        log::error!("Received None from AVID for sender {}", avid_msg.0);
+                        continue;
+                    }
+                    log::info!("Received request to start AVID from party {} messages at time: {:?}", avid_msg.0, SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis());
+                    
+                    self.handle_avid_termination(avid_msg.0,avid_msg.1.unwrap()).await;
+                }
             };
         }
         Ok(())

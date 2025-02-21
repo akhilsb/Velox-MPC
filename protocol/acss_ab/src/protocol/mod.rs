@@ -3,6 +3,9 @@ pub use init::*;
 
 mod ctrbc;
 pub use ctrbc::*;
+
+mod avid;
+pub use avid::*;
 // mod echo;
 // pub use echo::*;
 
