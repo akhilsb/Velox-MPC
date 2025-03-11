@@ -66,6 +66,8 @@ pub struct Context {
     /// RA input and output channels
     pub inp_ra_channel: Sender<(usize,usize,usize)>,
     pub recv_out_ra: Receiver<(usize,Replica,usize)>,
+
+    pub use_fft: bool,
 }
 
 impl Context {
@@ -147,6 +149,8 @@ impl Context {
 
                 inp_ra_channel: ra_req_send_channel,
                 recv_out_ra: ra_out_recv_channel,
+
+                use_fft: false
             };
 
             // Populate secret keys from config
@@ -233,7 +237,7 @@ impl Context {
                                 .unwrap()
                                 .as_millis());
                     
-                    self.handle_avid_termination(avid_msg.0,avid_msg.1.unwrap()).await;
+                    self.handle_avid_termination(avid_msg.0,avid_msg.1).await;
                 },
                 ra_msg = self.recv_out_ra.recv() => {
                     let ra_msg = ra_msg.ok_or_else(||
