@@ -14,6 +14,7 @@ impl Context{
         let shares : (Vec<LargeFieldSer>,LargeFieldSer,LargeFieldSer) = bincode::deserialize(shares_ser.as_slice()).unwrap();
         // Deserialize message
         log::info!("Deserialization successful in AVID for sender {}",sender);
+        
         self.acss_ab_state.shares.insert(sender, shares);
         self.verify_shares(sender).await;
     }
