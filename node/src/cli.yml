@@ -1,0 +1,55 @@
+name: replica
+version: "1.0"
+author: hermitsage <dth.bht@gmail.com>
+about: MPC node
+args:
+    - config:
+        short: c
+        long: config
+        help: the config file containing startup information
+        takes_value: true
+        required: true
+    - debug:
+        short: v
+        multiple: true
+        help: sets the verbosity level
+    - ip:
+        short: i
+        long: ip
+        help: A file containing all the ips for the other servers
+        takes_value: true
+    - protocol:
+        short: p
+        long: protocol
+        help: Protocol to run
+        takes_value: true
+    - input:
+        short: i
+        long: input
+        help: Input value to run protocol on
+        takes_value: true
+    - syncer:
+        short: y
+        long: syncer
+        help: IPs for the syncer to connect to
+        takes_value: true
+    - batches:
+        short: t
+        long: batches
+        help: Number of batches to split secrets
+        takes_value: true
+    - per:
+        short: r
+        long: per
+        help: Number of secrets to pack into each batch
+        takes_value: true
+    # - bfile:
+    #     short: b
+    #     long: bfile
+    #     help: The location of a file containing the list of all messages to be reliably broadcasted
+    #     takes_value: true
+    - byz:
+        short: b
+        long: byzantine
+        help: Byzantine faulty or normal node
+        takes_value: true

@@ -8,12 +8,12 @@ edition = "2021"
 [dependencies]
 bincode = "1"
 config = { package = "config", git="https://github.com/akhilsb/acss-rs.git"}
-ext_node = {package = "node", git = "https://github.com/akhilsb/acss-rs.git"}
-
 acss_ab = {package = "acss_ab", path="../protocol/acss_ab"}
+avid = { package = "avid", path="../protocol/avid"}
 
 protocol = { package = "protocol", path="../protocol"}
 util = { package = "util", git="https://github.com/akhilsb/acss-rs.git"}
+
 anyhow = "1"
 types = { package = "types", git="https://github.com/akhilsb/acss-rs.git"}
 clap = {version = "2", features = ["yaml"]}

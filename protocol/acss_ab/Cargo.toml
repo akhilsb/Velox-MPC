@@ -36,7 +36,6 @@ signal-hook = "0"
 # Local randomness
 rand = "0.6"
 rand_core = "0.6.4"
-rand_chacha = "0.3.1"
 
 network = { package = "network", git = "https://github.com/akhilsb/libnet-rs.git" }
 async-trait = "0"

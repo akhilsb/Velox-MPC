@@ -19,7 +19,7 @@ pub use protocol::*;
 // mod rbc_context;
 // pub use rbc_context::*;
 
-mod handlers;
+pub mod handlers;
 pub use handlers::*;
 
 mod process;

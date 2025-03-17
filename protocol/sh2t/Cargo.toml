@@ -1,41 +1,43 @@
 [package]
-name = "protocol"
+name = "sh2t"
 version = "0.1.0"
-authors = ["akhilsb <akhilsai2712@gmail.com>"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+protocol = { package = "protocol", path="../"}
+
+consensus = {package = "consensus", git="https://github.com/akhilsb/acss-rs.git"}
+ctrbc  = {package = "ctrbc", git= "https://github.com/akhilsb/acss-rs.git"}
+ra = {package = "ra", git= "https://github.com/akhilsb/acss-rs.git"}
 config = { package = "config", git="https://github.com/akhilsb/acss-rs.git"}
 types = { package = "types", git="https://github.com/akhilsb/acss-rs.git"}
 crypto = { package = "crypto", git="https://github.com/akhilsb/acss-rs.git"}
+
+avid = {package = "avid", path = "../avid"}
+
 tokio = { version = "1.0", features = ["full"] }
 futures = "^0.3"
+bincode = "1"
 bytes = "1.0"
 tokio-util = "0.6"
 tokio-stream = "0.1"
 serde = "1.0.70"
-serde_json = "1.0" # For JSON serialization
 log="*"
 priority-queue="1"
 fnv = "1"
+async-recursion = "1.0.0"
+anyhow = "1"
+sha2 = "0.10.8"
 reed-solomon-erasure = "4.0"
-num-traits = "0.2.19"
-
+signal-hook = "0"
 
 # Local randomness
 rand = "0.6"
 rand_core = "0.6.4"
-rand_chacha = "0.3.1"
-
-# Big Integers for field operations
-num-bigint-dig = "0.4"
-num-bigint = {version = "0.2.6", features = ["rand"]}
 
 network = { package = "network", git = "https://github.com/akhilsb/libnet-rs.git" }
 async-trait = "0"
 futures-util = "0"
+reed_solomon_rs = "0.1.2"
 
-# Polynomial Operations with FFT
 lambdaworks-math = "0.11.0"

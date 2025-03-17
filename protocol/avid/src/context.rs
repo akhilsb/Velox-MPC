@@ -73,11 +73,10 @@ impl Context {
             let address: SocketAddr = address.parse().expect("Unable to parse address");
             consensus_addrs.insert(*replica, SocketAddr::from(address.clone()));
         }
+        log::info!("Consensus addresses: {:?}", consensus_addrs);
         let my_port = consensus_addrs.get(&config.id).unwrap();
         let my_address = to_socket_address("0.0.0.0", my_port.port());
-        let mut syncer_map: FnvHashMap<Replica, SocketAddr> = FnvHashMap::default();
-        syncer_map.insert(0, config.client_addr);
-
+        
         // Setup networking
         let (tx_net_to_consensus, rx_net_to_consensus) = unbounded_channel();
         TcpReceiver::<Acknowledgement, WrapperMsg<ProtMsg>, _>::spawn(
