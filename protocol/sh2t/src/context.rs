@@ -25,7 +25,7 @@ use types::{Replica, SyncMsg, SyncState};
 
 use crypto::aes_hash::HashState;
 
-use crate::protocol::ACSSABState;
+use crate::Sh2tState;
 
 pub struct Context {
     /// Data context
@@ -44,7 +44,7 @@ pub struct Context {
     exit_rx: oneshot::Receiver<()>,
     
     // Each Reliable Broadcast instance is associated with a Unique Identifier. 
-    pub acss_ab_state: ACSSABState,
+    pub sh2t_state: Sh2tState,
 
     // Maximum number of RBCs that can be initiated by a node. Keep this as an identifier for RBC service. 
     pub threshold: usize, 
@@ -154,7 +154,7 @@ impl Context {
                 cancel_handlers: HashMap::default(),
                 exit_rx: exit_rx,
                 
-                acss_ab_state: ACSSABState::new(),
+                sh2t_state: Sh2tState::new(),
                 threshold: 10000,
 
                 max_id: rbc_start_id,
@@ -257,7 +257,7 @@ impl Context {
                                 .as_millis());
                     
                     let secrets_field: Vec<LargeField> = secrets.into_iter().map(|secret| LargeField::from_bytes_be(&secret).unwrap()).collect();
-                    self.init_acss_ab(secrets_field).await;
+                    self.init_sh2t(secrets_field).await;
                 },
                 ctrbc_msg = self.recv_out_ctrbc.recv() =>{
                     let ctrbc_msg = ctrbc_msg.ok_or_else(||
@@ -316,7 +316,7 @@ impl Context {
                             for i in 0..100000{
                                 vec_secrets.push(LargeField::from(i as u64));
                             }
-                            self.init_acss_ab(vec_secrets).await;
+                            self.init_sh2t(vec_secrets).await;
                         },
                         SyncState::STOP =>{
                             // Code used for internal purposes

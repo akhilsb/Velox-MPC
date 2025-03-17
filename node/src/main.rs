@@ -95,6 +95,17 @@ async fn main() -> Result<()> {
                     node_normal
                 ).unwrap();
         }
+        "sh2t" => {
+            let (_req_sender,req_receiver) = channel(10000);
+            let (out_sender,_out_receiver) = channel(10000);
+            exit_tx =
+                sh2t::Context::spawn(
+                    config, 
+                    req_receiver, 
+                    out_sender, 
+                    node_normal
+                ).unwrap();
+        }
         "sync" => {
             let f_str = syncer_file.to_string();
             log::info!("Logging the file f {}", f_str);

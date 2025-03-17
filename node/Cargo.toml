@@ -10,6 +10,7 @@ bincode = "1"
 config = { package = "config", git="https://github.com/akhilsb/acss-rs.git"}
 acss_ab = {package = "acss_ab", path="../protocol/acss_ab"}
 avid = { package = "avid", path="../protocol/avid"}
+sh2t = { package = "sh2t", path="../protocol/sh2t"}
 
 protocol = { package = "protocol", path="../protocol"}
 util = { package = "util", git="https://github.com/akhilsb/acss-rs.git"}

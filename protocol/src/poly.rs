@@ -36,8 +36,8 @@ pub fn sample_polynomials_from_prf(
 
 pub async fn generate_evaluation_points(
     evaluations_prf: Vec<Vec<LargeField>>, 
-    num_faults: usize,
-    num_nodes: usize,
+    degree: usize,
+    shares_total: usize,
 ) -> (Vec<Vec<LargeField>>, 
     Vec<Polynomial<LargeField>>
 ){
@@ -45,7 +45,7 @@ pub async fn generate_evaluation_points(
     // The first evaluation is always at 0
     let mut evaluation_points = Vec::new();
     evaluation_points.push(LargeField::new(UnsignedInteger::from(0u64)));
-    for i in 0..num_faults{
+    for i in 0..degree{
         evaluation_points.push(LargeField::new(UnsignedInteger::from((i+1) as u64)));
     }
     
@@ -58,7 +58,7 @@ pub async fn generate_evaluation_points(
     let mut evaluations_full = Vec::new();
     for polynomial in coefficients.iter(){
         let mut eval_vec_ind = Vec::new();
-        for index in 0..num_nodes{
+        for index in 0..shares_total{
             eval_vec_ind.push(polynomial.evaluate(&LargeField::new(UnsignedInteger::from((index+1) as u64))));
         }
         evaluations_full.push(eval_vec_ind);
@@ -68,8 +68,8 @@ pub async fn generate_evaluation_points(
 
 pub async fn generate_evaluation_points_fft(
     secrets: Vec<LargeField>,
-    num_faults: usize,
-    num_nodes: usize,
+    degree_poly: usize,
+    shares_total: usize,
 )-> (Vec<Vec<LargeField>>, 
     Vec<Polynomial<LargeField>>
 ){
@@ -78,7 +78,7 @@ pub async fn generate_evaluation_points_fft(
     for secret in secrets.clone().into_iter(){
         let mut coeffs_single_poly = Vec::new();
         coeffs_single_poly.push(secret);
-        for _ in 0..num_faults{
+        for _ in 0..degree_poly{
             coeffs_single_poly.push(rand_field_element());
         }
         coefficients.push(Polynomial::new(&coeffs_single_poly));
@@ -86,8 +86,7 @@ pub async fn generate_evaluation_points_fft(
 
     let mut evaluations = Vec::new();
     for poly_coeffs in coefficients.iter(){
-        let poly_evaluations_fft = Polynomial::evaluate_fft::<MontgomeryBackendPrimeField<MontgomeryConfigStark252PrimeField, 4>>(poly_coeffs, 1, Some(num_nodes)).unwrap();
-        // This vector has 3t+3 elements. Trim the last 2 elements
+        let poly_evaluations_fft = Polynomial::evaluate_fft::<MontgomeryBackendPrimeField<MontgomeryConfigStark252PrimeField, 4>>(poly_coeffs, 1, Some(shares_total)).unwrap();
         evaluations.push(poly_evaluations_fft);
     }
     (evaluations, coefficients)

@@ -23,7 +23,7 @@ for((i=0;i<4;i++)); do
 ./target/$TYPE/node \
     --config $TESTDIR/nodes-$i.json \
     --ip ip_file \
-    --protocol acss \
+    --protocol sh2t \
     --input $2 \
     --syncer $1 \
     --batches $4 \
