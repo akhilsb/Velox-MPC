@@ -56,14 +56,14 @@ pub struct Context {
 
     /// Input and output message queues for Reliable Broadcast
     pub inp_avid: Receiver<Vec<(Replica,Option<Vec<u8>>)>>,
-    pub out_avid: Sender<(Replica,Option<Vec<u8>>)>,
+    pub out_avid: Sender<(usize, Replica,Option<Vec<u8>>)>,
 }
 
 impl Context {
     pub fn spawn(
         config: Node,
         input_msgs: Receiver<Vec<(Replica,Option<Vec<u8>>)>>, 
-        output_msgs: Sender<(Replica,Option<Vec<u8>>)>, 
+        output_msgs: Sender<(usize, Replica,Option<Vec<u8>>)>, 
         byz: bool
     ) -> anyhow::Result<oneshot::Sender<()>> {
         // Add a separate configuration for RBC service. 

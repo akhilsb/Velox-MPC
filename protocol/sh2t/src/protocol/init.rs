@@ -6,7 +6,12 @@ use rand::random;
 use types::Replica;
 
 impl Context{
-    pub async fn init_sh2t(&self, secrets: Vec<LargeField>){
+    pub async fn init_sh2t(&mut self, secrets: Vec<LargeField>, instance_id: usize){
+        if !self.sh2t_state_map.contains_key(&instance_id){
+            let sh2t_state = crate::Sh2tState::new();
+            self.sh2t_state_map.insert(instance_id, sh2t_state);
+        }
+
         let tot_sharings = secrets.len();
 
         let mut handles = Vec::new();
@@ -145,22 +150,28 @@ impl Context{
         let _avid_status = self.inp_avid_channel.send(shares).await;
     }
 
-    pub async fn verify_shares(&mut self, sender: Replica){
-        if self.sh2t_state.verification_status.contains_key(&sender){
+    pub async fn verify_shares(&mut self, sender: Replica, instance_id: usize){
+        if !self.sh2t_state_map.contains_key(&instance_id) {
+            let sh2t_state = crate::Sh2tState::new();
+            self.sh2t_state_map.insert(instance_id, sh2t_state);
+        }
+        let sh2t_state = self.sh2t_state_map.get_mut(&instance_id).unwrap();
+
+        if sh2t_state.verification_status.contains_key(&sender){
             // Already verified status, abandon sharing
             return;
         }
 
-        if !self.sh2t_state.commitments.contains_key(&sender) || !self.sh2t_state.shares.contains_key(&sender){
+        if !sh2t_state.commitments.contains_key(&sender) || !sh2t_state.shares.contains_key(&sender){
             // AVID and CTRBC did not yet terminate
             return;
         }
 
-        let shares_full = self.sh2t_state.shares.get(&sender).unwrap().clone();
+        let shares_full = sh2t_state.shares.get(&sender).unwrap().clone();
         let shares = shares_full.0;
         let nonce_share = shares_full.1;
 
-        let commitments_full = self.sh2t_state.commitments.get(&sender).unwrap().clone();
+        let commitments_full = sh2t_state.commitments.get(&sender).unwrap().clone();
         let share_commitments = commitments_full;
         
         // First, verify share commitments
@@ -173,15 +184,15 @@ impl Context{
         if comm_hash != share_commitments[self.myid]{
             // Invalid share commitments
             log::error!("Invalid share commitments from {}", sender);
-            self.sh2t_state.verification_status.insert(sender, false);
+            sh2t_state.verification_status.insert(sender, false);
             return;
         }
         
         log::info!("Share from {} verified", sender);
         // If successful, add to verified list
-        self.sh2t_state.verification_status.insert(sender,true);
+        sh2t_state.verification_status.insert(sender,true);
         // Start reliable agreement
-        let _status = self.inp_ra_channel.send((sender,1,1)).await;
-        self.check_termination(sender).await;
+        let _status = self.inp_ra_channel.send((sender,1,instance_id)).await;
+        self.check_termination(sender, instance_id).await;
     }
 }

@@ -96,7 +96,7 @@ impl Syncer{
         }
     }
     pub async fn run(&mut self)-> Result<()>{
-        let mut interval = time::interval(Duration::from_millis(100));
+        let mut interval = time::interval(Duration::from_millis(1000));
         loop {
             tokio::select! {
                 // Receive exit handlers
@@ -155,7 +155,7 @@ impl Syncer{
                                 else{
                                     log::info!("All n nodes completed the protocol for ID: {} with latency {:?} and value {:?}",rbc_msg.id,vec_times,value_set);
                                 }
-                                self.broadcast(SyncMsg { sender: self.num_nodes, state: SyncState::STOP, value:"Terminate".to_string().into_bytes()}).await;
+                                //self.broadcast(SyncMsg { sender: self.num_nodes, state: SyncState::STOP, value:"Terminate".to_string().into_bytes()}).await;
                             }
                         }
                         _=>{}
@@ -181,20 +181,22 @@ impl Syncer{
                         // }).await;
                         // self.add_cancel_handler(cancel_handler);
                         log::info!("Initiating ACSS with dealer with ID: {} and value {:?}",0, sync_rbc_msg);
-                        let cancel_handler = self.net_send.send(0, SyncMsg { 
+                        self.broadcast(SyncMsg { 
                             sender: self.num_nodes, 
                             state: SyncState::START,
                             value: binaryfy_val
                         }).await;
                         
-                        self.add_cancel_handler(cancel_handler);
+                        //self.add_cancel_handler(cancel_handler);
 
                         let start_time = SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
                         .as_millis();
-                        
-                        self.rbc_start_times.insert(self.rbc_id, start_time);
+                        for x in 0..self.num_nodes+2{
+                            self.rbc_start_times.insert(self.rbc_id+x, start_time);
+                            // store start time for each node
+                        }
                     }
                 }
             }

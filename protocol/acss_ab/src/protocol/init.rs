@@ -7,8 +7,15 @@ use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, genera
 use rand::random;
 use types::Replica;
 
+use super::ACSSABState;
+
 impl Context{
-    pub async fn init_acss_ab(&self, secrets: Vec<LargeField>){
+    pub async fn init_acss_ab(&mut self, secrets: Vec<LargeField>, instance_id: usize){
+        if !self.acss_ab_state.contains_key(&instance_id){
+            let acss_ab_state = ACSSABState::new();
+            self.acss_ab_state.insert(instance_id, acss_ab_state);
+        }
+
         let tot_sharings = secrets.len();
 
         let mut handles = Vec::new();
@@ -232,23 +239,29 @@ impl Context{
         let _avid_status = self.inp_avid_channel.send(shares).await;
     }
 
-    pub async fn verify_shares(&mut self, sender: Replica){
-        if self.acss_ab_state.verification_status.contains_key(&sender){
+    pub async fn verify_shares(&mut self, sender: Replica, instance_id: usize){
+        if !self.acss_ab_state.contains_key(&instance_id){
+            let acss_state = ACSSABState::new();
+            self.acss_ab_state.insert(instance_id, acss_state);
+        }
+
+        let acss_ab_state = self.acss_ab_state.get_mut(&instance_id).unwrap();
+        if acss_ab_state.verification_status.contains_key(&sender){
             // Already verified status, abandon sharing
             return;
         }
 
-        if !self.acss_ab_state.commitments.contains_key(&sender) || !self.acss_ab_state.shares.contains_key(&sender){
+        if !acss_ab_state.commitments.contains_key(&sender) || !acss_ab_state.shares.contains_key(&sender){
             // AVID and CTRBC did not yet terminate
             return;
         }
 
-        let shares_full = self.acss_ab_state.shares.get(&sender).unwrap().clone();
+        let shares_full = acss_ab_state.shares.get(&sender).unwrap().clone();
         let shares = shares_full.0;
         let nonce_share = shares_full.1;
         let blinding_nonce_share = shares_full.2;
 
-        let commitments_full = self.acss_ab_state.commitments.get(&sender).unwrap().clone();
+        let commitments_full = acss_ab_state.commitments.get(&sender).unwrap().clone();
         let share_commitments = commitments_full.0;
         let blinding_commitments = commitments_full.1;
         let dzk_coeffs = commitments_full.2;
@@ -264,7 +277,7 @@ impl Context{
         if comm_hash != share_commitments[self.myid]{
             // Invalid share commitments
             log::error!("Invalid share commitments from {}", sender);
-            self.acss_ab_state.verification_status.insert(sender, false);
+            acss_ab_state.verification_status.insert(sender, false);
             return;
         }
 
@@ -301,14 +314,14 @@ impl Context{
         if blinding_hash != blinding_comm_sender{
             // Invalid DZK proof
             log::error!("Invalid DZK proof from {}", sender);
-            self.acss_ab_state.verification_status.insert(sender,false);
+            acss_ab_state.verification_status.insert(sender,false);
             return;
         }
         log::info!("Share from {} verified", sender);
         // If successful, add to verified list
-        self.acss_ab_state.verification_status.insert(sender,true);
+        acss_ab_state.verification_status.insert(sender,true);
         // Start reliable agreement
-        let _status = self.inp_ra_channel.send((sender,1,1)).await;
-        self.check_termination(sender).await;
+        let _status = self.inp_ra_channel.send((sender,1,instance_id)).await;
+        self.check_termination(sender, instance_id).await;
     }
 }

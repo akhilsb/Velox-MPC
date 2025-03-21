@@ -44,7 +44,7 @@ pub struct Context {
     exit_rx: oneshot::Receiver<()>,
     
     // Each Reliable Broadcast instance is associated with a Unique Identifier. 
-    pub sh2t_state: Sh2tState,
+    pub sh2t_state_map: HashMap<usize,Sh2tState>,
 
     // Maximum number of RBCs that can be initiated by a node. Keep this as an identifier for RBC service. 
     pub threshold: usize, 
@@ -53,8 +53,8 @@ pub struct Context {
 
     pub num_threads: usize,
     /// Input and output message queues for Reliable Broadcast
-    pub inp_acss: Receiver<Vec<LargeFieldSer>>,
-    pub out_acss: Sender<(Replica,Option<Vec<LargeFieldSer>>)>,
+    pub inp_acss: Receiver<(usize,Vec<LargeFieldSer>)>,
+    pub out_acss: Sender<(usize, Replica,Option<Vec<LargeFieldSer>>)>,
 
     /// CTRBC input and output channels
     pub inp_ctrbc: Sender<Vec<u8>>,
@@ -62,7 +62,7 @@ pub struct Context {
 
     /// AVID input and output channels
     pub inp_avid_channel: Sender<Vec<(Replica,Option<Vec<u8>>)>>,
-    pub recv_out_avid: Receiver<(Replica,Option<Vec<u8>>)>,
+    pub recv_out_avid: Receiver<(usize,Replica,Option<Vec<u8>>)>,
 
     /// RA input and output channels
     pub inp_ra_channel: Sender<(usize,usize,usize)>,
@@ -78,8 +78,8 @@ pub struct Context {
 impl Context {
     pub fn spawn(
         config: Node,
-        input_msgs: Receiver<Vec<LargeFieldSer>>, 
-        output_msgs: Sender<(Replica,Option<Vec<LargeFieldSer>>)>, 
+        input_msgs: Receiver<(usize,Vec<LargeFieldSer>)>, 
+        output_msgs: Sender<(usize, Replica,Option<Vec<LargeFieldSer>>)>, 
         _byz: bool
     ) -> anyhow::Result<oneshot::Sender<()>> {
         // Add a separate configuration for RBC service. 
@@ -154,7 +154,7 @@ impl Context {
                 cancel_handlers: HashMap::default(),
                 exit_rx: exit_rx,
                 
-                sh2t_state: Sh2tState::new(),
+                sh2t_state_map: HashMap::default(),
                 threshold: 10000,
 
                 max_id: rbc_start_id,
@@ -248,7 +248,7 @@ impl Context {
                     break
                 },
                 acss_msg = self.inp_acss.recv() =>{
-                    let secrets = acss_msg.ok_or_else(||
+                    let (id,secrets) = acss_msg.ok_or_else(||
                         anyhow!("Networking layer has closed")
                     )?;
                     log::info!("Received request to start ACSS with abort  for {} secrets at time: {:?}",secrets.len() , SystemTime::now()
@@ -257,7 +257,7 @@ impl Context {
                                 .as_millis());
                     
                     let secrets_field: Vec<LargeField> = secrets.into_iter().map(|secret| LargeField::from_bytes_be(&secret).unwrap()).collect();
-                    self.init_sh2t(secrets_field).await;
+                    self.init_sh2t(secrets_field, id).await;
                 },
                 ctrbc_msg = self.recv_out_ctrbc.recv() =>{
                     let ctrbc_msg = ctrbc_msg.ok_or_else(||
@@ -267,13 +267,14 @@ impl Context {
                                 .duration_since(UNIX_EPOCH)
                                 .unwrap()
                                 .as_millis());
-                    self.handle_ctrbc_termination(ctrbc_msg.0,ctrbc_msg.1,ctrbc_msg.2).await;
+                    // TODO: Change this part after changing CTRBC repository
+                    self.handle_ctrbc_termination(ctrbc_msg.0-1,ctrbc_msg.1,ctrbc_msg.2).await;
                 },
                 avid_msg = self.recv_out_avid.recv() =>{
                     let avid_msg = avid_msg.ok_or_else(||
                         anyhow!("Networking layer has closed")
                     )?;
-                    if avid_msg.1.is_none(){
+                    if avid_msg.2.is_none(){
                         log::error!("Received None from AVID for sender {}", avid_msg.0);
                         continue;
                     }
@@ -282,7 +283,7 @@ impl Context {
                                 .unwrap()
                                 .as_millis());
                     
-                    self.handle_avid_termination(avid_msg.0,avid_msg.1).await;
+                    self.handle_avid_termination(avid_msg.0,avid_msg.1, avid_msg.2).await;
                 },
                 ra_msg = self.recv_out_ra.recv() => {
                     let ra_msg = ra_msg.ok_or_else(||
@@ -316,7 +317,7 @@ impl Context {
                             for i in 0..100000{
                                 vec_secrets.push(LargeField::from(i as u64));
                             }
-                            self.init_sh2t(vec_secrets).await;
+                            self.init_sh2t(vec_secrets,1).await;
                         },
                         SyncState::STOP =>{
                             // Code used for internal purposes

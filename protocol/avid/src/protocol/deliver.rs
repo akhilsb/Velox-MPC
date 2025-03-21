@@ -20,6 +20,7 @@ impl Context{
             avid_state.insert(share_sender, avid_shard);
         }
         
+        let avid_inst_id = instance_id % self.threshold;
         if avid_context.terminated && avid_state.len() == self.num_faults + 1{
             // Reconstruct and verify root
             // Reconstruct the entire Merkle tree
@@ -53,7 +54,8 @@ impl Context{
                 }
                 avid_context.message = Some(message.clone());
                 log::info!("Delivered message through AVID from sender {} for instance ID {}",avid_context.sender,instance_id);
-                let status = self.out_avid.send((avid_context.sender,Some(message))).await;
+                
+                let status = self.out_avid.send((avid_inst_id,avid_context.sender,Some(message))).await;
                 if status.is_err(){
                     log::error!("Error sending message to parent channel {:?}", status.unwrap_err());
                 }
@@ -61,7 +63,7 @@ impl Context{
             else{
                 // Do something else
                 log::error!("Message's merkle root does not match broadcasted root for instance ID {}. Exiting",instance_id);
-                let status = self.out_avid.send((avid_context.sender,None)).await;
+                let status = self.out_avid.send((avid_inst_id,avid_context.sender,None)).await;
                 if status.is_err(){
                     log::error!("Error sending message to parent channel {:?}", status.unwrap_err());
                 }
