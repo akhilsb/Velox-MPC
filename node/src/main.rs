@@ -7,7 +7,6 @@ use signal_hook::{
     consts::{SIGINT, SIGTERM},
     iterator::Signals,
 };
-use tokio::sync::mpsc::channel;
 use std::{net::{SocketAddr, SocketAddrV4}};
 
 #[tokio::main]
@@ -84,28 +83,26 @@ async fn main() -> Result<()> {
         //             node_normal
         //         ).unwrap();
         // }
-        "acss" => {
-            let (_req_sender,req_receiver) = channel(10000);
-            let (out_sender,_out_receiver) = channel(10000);
+        "mpc" => {
             exit_tx =
-                acss_ab::Context::spawn(
+                mpc::context::Context::spawn(
                     config, 
-                    req_receiver, 
-                    out_sender, 
+                     _per_batch,
+                    _batches,
                     node_normal
                 ).unwrap();
         }
-        "sh2t" => {
-            let (_req_sender,req_receiver) = channel(10000);
-            let (out_sender,_out_receiver) = channel(10000);
-            exit_tx =
-                sh2t::Context::spawn(
-                    config, 
-                    req_receiver, 
-                    out_sender, 
-                    node_normal
-                ).unwrap();
-        }
+        // "sh2t" => {
+        //     let (_req_sender,req_receiver) = channel(10000);
+        //     let (out_sender,_out_receiver) = channel(10000);
+        //     exit_tx =
+        //         sh2t::Context::spawn(
+        //             config, 
+        //             req_receiver, 
+        //             out_sender, 
+        //             node_normal
+        //         ).unwrap();
+        // }
         "sync" => {
             let f_str = syncer_file.to_string();
             log::info!("Logging the file f {}", f_str);

@@ -5,23 +5,23 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use avid::SyncHandler;
+// use avid::SyncHandler;
 use config::Node;
 
 use fnv::FnvHashMap;
 use lambdaworks_math::{traits::ByteConversion, fft::cpu::roots_of_unity::get_powers_of_primitive_root, field::traits::RootsConfig};
 use network::{
-    plaintcp::{CancelHandler, TcpReceiver, TcpReliableSender},
+    plaintcp::{CancelHandler},
     Acknowledgement,
 };
 use protocol::{LargeFieldSer, LargeField};
 use signal_hook::{iterator::Signals, consts::{SIGINT, SIGTERM}};
 use tokio::{sync::{
-    mpsc::{Receiver, Sender, channel, unbounded_channel, UnboundedReceiver},
+    mpsc::{Receiver, Sender, channel},
     oneshot,
 }};
 // use tokio_util::time::DelayQueue;
-use types::{Replica, SyncMsg, SyncState};
+use types::{Replica};
 
 use crypto::aes_hash::HashState;
 
@@ -71,15 +71,15 @@ pub struct Context {
     pub use_fft: bool,
     pub roots_of_unity: Vec<LargeField>,
 
-    pub sync_send: TcpReliableSender<Replica, SyncMsg, Acknowledgement>,
-    pub sync_recv: UnboundedReceiver<SyncMsg>,
+    // pub sync_send: TcpReliableSender<Replica, SyncMsg, Acknowledgement>,
+    // pub sync_recv: UnboundedReceiver<SyncMsg>,
 }
 
 impl Context {
     pub fn spawn(
         config: Node,
         input_msgs: Receiver<(usize,Vec<LargeFieldSer>)>, 
-        output_msgs: Sender<(usize, Replica,Option<Vec<LargeFieldSer>>)>, 
+        output_msgs: Sender<(usize, Replica, Option<Vec<LargeFieldSer>>)>, 
         _byz: bool
     ) -> anyhow::Result<oneshot::Sender<()>> {
         // Add a separate configuration for RBC service. 
@@ -108,21 +108,21 @@ impl Context {
 
         }
 
-        let mut syncer_map: FnvHashMap<Replica, SocketAddr> = FnvHashMap::default();
-        syncer_map.insert(0, config.client_addr);
+        // let mut syncer_map: FnvHashMap<Replica, SocketAddr> = FnvHashMap::default();
+        // syncer_map.insert(0, config.client_addr);
 
-        let syncer_listen_port = config.client_port;
-        let syncer_l_address = to_socket_address("0.0.0.0", syncer_listen_port);
+        // let syncer_listen_port = config.client_port;
+        // let syncer_l_address = to_socket_address("0.0.0.0", syncer_listen_port);
 
-        // The server must listen to the client's messages on some port that is not being used to listen to other servers
-        let (tx_net_to_client, rx_net_from_client) = unbounded_channel();
-        TcpReceiver::<Acknowledgement, SyncMsg, _>::spawn(
-            syncer_l_address,
-            SyncHandler::new(tx_net_to_client),
-        );
+        // // The server must listen to the client's messages on some port that is not being used to listen to other servers
+        // let (tx_net_to_client, rx_net_from_client) = unbounded_channel();
+        // TcpReceiver::<Acknowledgement, SyncMsg, _>::spawn(
+        //     syncer_l_address,
+        //     SyncHandler::new(tx_net_to_client),
+        // );
 
-        let sync_net =
-            TcpReliableSender::<Replica, SyncMsg, Acknowledgement>::with_peers(syncer_map);
+        // let sync_net =
+        //     TcpReliableSender::<Replica, SyncMsg, Acknowledgement>::with_peers(syncer_map);
         
         let (exit_tx, exit_rx) = oneshot::channel();
 
@@ -177,8 +177,8 @@ impl Context {
                 use_fft: true,
 
                 // Syncer related stuff
-                sync_send: sync_net,
-                sync_recv: rx_net_from_client,
+                // sync_send: sync_net,
+                // sync_recv: rx_net_from_client,
             };
 
             // Populate secret keys from config
@@ -226,19 +226,19 @@ impl Context {
     pub async fn run(&mut self) -> Result<()> {
         // The process starts listening to messages in this process.
         // First, the node sends an alive message
-        log::info!("Starting the consensus server with id: {}", self.myid);
-        let cancel_handler = self
-            .sync_send
-            .send(
-                0,
-                SyncMsg {
-                    sender: self.myid,
-                    state: SyncState::ALIVE,
-                    value: "".to_string().into_bytes(),
-                },
-            )
-            .await;
-        self.add_cancel_handler(cancel_handler);
+        // log::info!("Starting the consensus server with id: {}", self.myid);
+        // let cancel_handler = self
+        //     .sync_send
+        //     .send(
+        //         0,
+        //         SyncMsg {
+        //             sender: self.myid,
+        //             state: SyncState::ALIVE,
+        //             value: "".to_string().into_bytes(),
+        //         },
+        //     )
+        //     .await;
+        // self.add_cancel_handler(cancel_handler);
         loop {
             tokio::select! {
                 // Receive exit handlers
@@ -295,42 +295,42 @@ impl Context {
                                 .as_millis());
                     self.handle_ra_termination(ra_msg.1, ra_msg.0,ra_msg.2).await;
                 },
-                sync_msg = self.sync_recv.recv() =>{
-                    let sync_msg = sync_msg.ok_or_else(||
-                        anyhow!("Networking layer has closed")
-                    )?;
-                    log::info!("Received sync message from party {} at time: {:?}", sync_msg.sender, SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .unwrap()
-                                .as_millis());
-                    match sync_msg.state {
-                        SyncState::START =>{
-                            // Code used for internal purposes
-                            log::info!("Consensus Start time: {:?}", SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .unwrap()
-                                .as_millis());
-                            // Start your protocol from here
-                            // Write a function to broadcast a message. We demonstrate an example with a PING function
-                            // Dealer sends message to everybody. <M, init>
-                            let mut vec_secrets = Vec::new();
-                            for i in 0..100000{
-                                vec_secrets.push(LargeField::from(i as u64));
-                            }
-                            self.init_sh2t(vec_secrets,1).await;
-                        },
-                        SyncState::STOP =>{
-                            // Code used for internal purposes
-                            log::info!("Consensus Stop time: {:?}", SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .unwrap()
-                                .as_millis());
-                            log::info!("Termination signal received by the server. Exiting.");
-                            break
-                        },
-                        _=>{}
-                    }
-                }
+                // sync_msg = self.sync_recv.recv() =>{
+                //     let sync_msg = sync_msg.ok_or_else(||
+                //         anyhow!("Networking layer has closed")
+                //     )?;
+                //     log::info!("Received sync message from party {} at time: {:?}", sync_msg.sender, SystemTime::now()
+                //                 .duration_since(UNIX_EPOCH)
+                //                 .unwrap()
+                //                 .as_millis());
+                //     match sync_msg.state {
+                //         SyncState::START =>{
+                //             // Code used for internal purposes
+                //             log::info!("Consensus Start time: {:?}", SystemTime::now()
+                //                 .duration_since(UNIX_EPOCH)
+                //                 .unwrap()
+                //                 .as_millis());
+                //             // Start your protocol from here
+                //             // Write a function to broadcast a message. We demonstrate an example with a PING function
+                //             // Dealer sends message to everybody. <M, init>
+                //             let mut vec_secrets = Vec::new();
+                //             for i in 0..100000{
+                //                 vec_secrets.push(LargeField::from(i as u64));
+                //             }
+                //             self.init_sh2t(vec_secrets,1).await;
+                //         },
+                //         SyncState::STOP =>{
+                //             // Code used for internal purposes
+                //             log::info!("Consensus Stop time: {:?}", SystemTime::now()
+                //                 .duration_since(UNIX_EPOCH)
+                //                 .unwrap()
+                //                 .as_millis());
+                //             log::info!("Termination signal received by the server. Exiting.");
+                //             break
+                //         },
+                //         _=>{}
+                //     }
+                // }
             };
         }
         Ok(())

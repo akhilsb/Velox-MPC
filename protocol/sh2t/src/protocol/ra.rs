@@ -1,4 +1,4 @@
-use types::{RBCSyncMsg, SyncMsg, SyncState};
+//use types::{RBCSyncMsg, SyncMsg, SyncState};
 
 use crate::Context;
 
@@ -36,7 +36,7 @@ impl Context{
                 let shares = sh2t_state.shares.get(&sender).unwrap().clone();
                 let _status = self.out_acss.send((instance_id, sender,Some(shares.0))).await;
                 sh2t_state.status.insert(sender);
-                self.terminate("Hello".to_string(), instance_id, sender).await;
+                // self.terminate("Hello".to_string(), instance_id, sender).await;
             }
             else{
                 let _status = self.out_acss.send((instance_id, sender,None)).await;
@@ -46,24 +46,24 @@ impl Context{
     }
 
     // Invoke this function once you terminate the protocol
-    pub async fn terminate(&mut self, data: String, instance_id: usize, sender: usize) {
-        let rbc_sync_msg = RBCSyncMsg{
-            id: instance_id+sender,
-            msg: data,
-        };
+    // pub async fn terminate(&mut self, data: String, instance_id: usize, sender: usize) {
+    //     let rbc_sync_msg = RBCSyncMsg{
+    //         id: instance_id+sender,
+    //         msg: data,
+    //     };
 
-        let ser_msg = bincode::serialize(&rbc_sync_msg).unwrap();
-        let cancel_handler = self
-            .sync_send
-            .send(
-                0,
-                SyncMsg {
-                    sender: self.myid,
-                    state: SyncState::COMPLETED,
-                    value: ser_msg,
-                },
-            )
-            .await;
-        self.add_cancel_handler(cancel_handler);
-    }
+    //     let ser_msg = bincode::serialize(&rbc_sync_msg).unwrap();
+    //     let cancel_handler = self
+    //         .sync_send
+    //         .send(
+    //             0,
+    //             SyncMsg {
+    //                 sender: self.myid,
+    //                 state: SyncState::COMPLETED,
+    //                 value: ser_msg,
+    //             },
+    //         )
+    //         .await;
+    //     self.add_cancel_handler(cancel_handler);
+    // }
 }

@@ -1,7 +1,7 @@
 use std::{collections::{HashSet, HashMap}, net::{SocketAddr,SocketAddrV4}, time::{SystemTime, UNIX_EPOCH, Duration}};
 
 use anyhow::{Result, anyhow};
-use avid::SyncHandler;
+use mpc::handlers::SyncHandler;
 use fnv::FnvHashMap;
 use network::{plaintcp::{TcpReceiver, TcpReliableSender, CancelHandler}, Acknowledgement};
 use tokio::{sync::{oneshot, mpsc::{unbounded_channel, UnboundedReceiver}}, time};
