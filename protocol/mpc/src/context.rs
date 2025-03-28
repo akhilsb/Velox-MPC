@@ -13,6 +13,7 @@ use network::{
     Acknowledgement,
 };
 use protocol::LargeFieldSer;
+use signal_hook::{iterator::Signals, consts::{SIGINT, SIGTERM}};
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedReceiver, Receiver, Sender, channel},
     oneshot,
@@ -22,7 +23,7 @@ use types::{Replica, WrapperMsg, SyncMsg, SyncState};
 
 use crypto::{aes_hash::HashState};
 
-use crate::{msg::ProtMsg, handlers::{sync_handler::SyncHandler, handler::Handler}};
+use crate::{msg::ProtMsg, handlers::{sync_handler::SyncHandler, handler::Handler}, protocol::RandSharings};
 
 pub struct Context {
     /// Networking context
@@ -45,8 +46,10 @@ pub struct Context {
     pub cancel_handlers: HashMap<u64, Vec<CancelHandler<Acknowledgement>>>,
     exit_rx: oneshot::Receiver<()>,
     
-    per_batch: usize,
-    tot_batches: usize,
+    pub per_batch: usize,
+    pub tot_batches: usize,
+
+    pub total_sharings_for_coins: usize,
 
     // Maximum number of RBCs that can be initiated by a node. Keep this as an identifier for RBC service. 
     pub threshold: usize, 
@@ -63,8 +66,12 @@ pub struct Context {
     pub acs_event_send: Sender<usize>,
     pub acs_out_recv: Receiver<Vec<usize>>,
 
+    // Housekeeping processes for tracking metrics of the protocol
     pub sync_send: TcpReliableSender<Replica, SyncMsg, Acknowledgement>,
     pub sync_recv: UnboundedReceiver<SyncMsg>,
+
+    // State structures for keeping track of the state of the protocol
+    pub rand_sharings_state: RandSharings,
 }
 
 impl Context {
@@ -169,6 +176,8 @@ impl Context {
 
                 per_batch: per_batch,
                 tot_batches: tot_batches,
+
+                total_sharings_for_coins: 2*config.num_nodes,
                 
                 acss_ab_send: acss_ab_send,
                 acss_ab_out_recv: acss_ab_out_recv,
@@ -182,6 +191,8 @@ impl Context {
                 // Syncer related stuff
                 sync_send: sync_net,
                 sync_recv: rx_net_from_client,
+
+                rand_sharings_state: RandSharings::new(),
             };
 
             // Populate secret keys from config
@@ -195,24 +206,41 @@ impl Context {
             }
         });
 
-        let _status = acss_ab::Context::spawn(
+        let status = acss_ab::Context::spawn(
             acss_ab_config,
             acss_ab_recv,
             acss_ab_out_send,
             false,
         );
-        let _status = sh2t::Context::spawn(
+        if status.is_err() {
+            log::error!("Error spawning acss_ab because of {:?}", status.err().unwrap());
+        }
+
+        let status_sh2t = sh2t::Context::spawn(
             sh2t_config,
             sh2t_recv,
             sh2t_out_send,
             false,
         );
-        let _status = acs::Context::spawn(
+        
+        if status_sh2t.is_err() {
+            log::error!("Error spawning status_sh2t because of {:?}", status_sh2t.err().unwrap());
+        }
+        let status_acs = acs::Context::spawn(
             acs_config,
             acs_inp_recv,
             acs_out_send,
             false,
         );
+        
+        if status_acs.is_err() {
+            log::error!("Error spawning acss_ab because of {:?}", status_acs.err().unwrap());
+        }
+        
+        let mut signals = Signals::new(&[SIGINT, SIGTERM])?;
+        signals.forever().next();
+        log::error!("Received termination signal");
+
         Ok(exit_tx)
     }
 
@@ -245,6 +273,18 @@ impl Context {
     pub async fn run(&mut self) -> Result<()> {
         // The process starts listening to messages in this process.
         // First, the node sends an alive message
+        let cancel_handler = self
+            .sync_send
+            .send(
+                0,
+                SyncMsg {
+                    sender: self.myid,
+                    state: SyncState::ALIVE,
+                    value: "".to_string().into_bytes(),
+                },
+            )
+            .await;
+        self.add_cancel_handler(cancel_handler);
         loop {
             tokio::select! {
                 // Receive exit handlers
@@ -260,6 +300,29 @@ impl Context {
                         anyhow!("Networking layer has closed")
                     )?;
                     //self.process_msg(msg).await;
+                },
+                acss_msg = self.acss_ab_out_recv.recv() => {
+                    let acss_msg_unwrap = acss_msg.ok_or_else(||
+                        anyhow!("Networking layer has closed")
+                    )?;
+                    log::info!("Received shares from ACSS module for instance {} from party {}",acss_msg_unwrap.0,acss_msg_unwrap.1);
+                    // Check if the option is none. It means some party aborted
+                    self.handle_acss_term_msg(acss_msg_unwrap.0, acss_msg_unwrap.1, acss_msg_unwrap.2).await;
+                },
+                sh2t_msg = self.sh2t_out_recv.recv() => {
+                    let sh2t_msg_unwrap = sh2t_msg.ok_or_else(||
+                        anyhow!("Networking layer has closed")
+                    )?;
+                    log::info!("Received shares from SH2T module for instance {} from party {}",sh2t_msg_unwrap.0,sh2t_msg_unwrap.1);
+                    // Check if the option is none. It means some party aborted
+                    self.handle_sh2t_term_msg(sh2t_msg_unwrap.0, sh2t_msg_unwrap.1, sh2t_msg_unwrap.2).await;
+                },
+                acs_output = self.acs_out_recv.recv() =>{
+                    let acs_output = acs_output.ok_or_else(||
+                        anyhow!("Networking layer has closed")
+                    )?;
+                    log::debug!("Received message from RBC channel {:?}", acs_output);
+                    self.handle_acs_output(acs_output).await;
                 },
                 sync_msg = self.sync_recv.recv() =>{
                     let sync_msg = sync_msg.ok_or_else(||

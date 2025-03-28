@@ -15,7 +15,7 @@ use network::{
     Acknowledgement,
 };
 use protocol::{LargeFieldSer, LargeField};
-use signal_hook::{iterator::Signals, consts::{SIGINT, SIGTERM}};
+//use signal_hook::{iterator::Signals, consts::{SIGINT, SIGTERM}};
 use tokio::{sync::{
     mpsc::{Receiver, Sender, channel},
     oneshot,
@@ -81,7 +81,7 @@ impl Context {
         input_msgs: Receiver<(usize,Vec<LargeFieldSer>)>, 
         output_msgs: Sender<(usize, Replica, Option<Vec<LargeFieldSer>>)>, 
         _byz: bool
-    ) -> anyhow::Result<oneshot::Sender<()>> {
+    ) -> anyhow::Result<(oneshot::Sender<()>, Vec<Result<oneshot::Sender<()>>>)> {
         // Add a separate configuration for RBC service. 
 
         let mut ctrbc_config = config.clone();
@@ -192,31 +192,32 @@ impl Context {
             }
         });
 
+        let mut vector_statuses = vec![];
         let _status =  ctrbc::Context::spawn(
             ctrbc_config, 
             ctrbc_req_recv_channel, 
             ctrbc_out_send_channel, 
             false
         );
-
+        vector_statuses.push(_status);
         let _status =  avid::Context::spawn(
             avid_config, 
             avid_req_recv_channel, 
             avid_out_send_channel, 
             false
         );
-
+        vector_statuses.push(_status);
         let _status = ra::Context::spawn(
             ra_config,
             ra_req_recv_channel,
             ra_out_send_channel,
             false
         );
-
-        let mut signals = Signals::new(&[SIGINT, SIGTERM])?;
-        signals.forever().next();
-        log::error!("Received termination signal");
-        Ok(exit_tx)
+        vector_statuses.push(_status);
+        // let mut signals = Signals::new(&[SIGINT, SIGTERM])?;
+        // signals.forever().next();
+        // log::error!("Received termination signal");
+        Ok((exit_tx, vector_statuses))
     }
 
     pub fn add_cancel_handler(&mut self, canc: CancelHandler<Acknowledgement>) {
@@ -251,7 +252,7 @@ impl Context {
                     let (id,secrets) = acss_msg.ok_or_else(||
                         anyhow!("Networking layer has closed")
                     )?;
-                    log::info!("Received request to start ACSS with abort  for {} secrets at time: {:?}",secrets.len() , SystemTime::now()
+                    log::info!("Received request to start Sh2t with abort  for {} secrets at time: {:?}",secrets.len() , SystemTime::now()
                                 .duration_since(UNIX_EPOCH)
                                 .unwrap()
                                 .as_millis());

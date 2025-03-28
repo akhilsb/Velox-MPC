@@ -96,7 +96,7 @@ impl Syncer{
         }
     }
     pub async fn run(&mut self)-> Result<()>{
-        let mut interval = time::interval(Duration::from_millis(1000));
+        let mut interval = time::interval(Duration::from_millis(100));
         loop {
             tokio::select! {
                 // Receive exit handlers
@@ -180,7 +180,7 @@ impl Syncer{
                         //     value:binaryfy_val
                         // }).await;
                         // self.add_cancel_handler(cancel_handler);
-                        log::info!("Initiating ACSS with dealer with ID: {} and value {:?}",0, sync_rbc_msg);
+                        log::info!("Initiating MPC with dealer with ID: {} and value {:?}",0, sync_rbc_msg);
                         self.broadcast(SyncMsg { 
                             sender: self.num_nodes, 
                             state: SyncState::START,
@@ -193,10 +193,7 @@ impl Syncer{
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
                         .as_millis();
-                        for x in 0..self.num_nodes+2{
-                            self.rbc_start_times.insert(self.rbc_id+x, start_time);
-                            // store start time for each node
-                        }
+                        self.rbc_start_times.insert(self.rbc_id, start_time);
                     }
                 }
             }
