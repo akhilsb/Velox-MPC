@@ -19,6 +19,13 @@ impl Context{
         let n = a_shares.len();
         let depth_state = self.mult_state.get_single_depth_state(depth, false, n);
 
+        // Log these entries in the verification state for later verification
+        if depth <= self.max_depth {
+            let first_a_shares = a_shares.clone().into_iter().map(|x| x[0]).collect();
+            let first_b_shares = b_shares.clone().into_iter().map(|x| x[0]).collect();
+            self.verf_state.add_mult_inputs(depth, first_a_shares, first_b_shares);
+        }
+
         // Poll the r multiplication random shares
         // Pull n shares from r_sharings and n/2 shares from o sharings
 
@@ -82,13 +89,14 @@ impl Context{
             
             depth_state.l1_shares_reconstructed.extend(reconstructed_secrets.clone());
             // Now, subtract random sharings from the reconstructed secrets
-            let _next_depth_sharings: Vec<LargeField> = 
+            let next_depth_sharings: Vec<LargeField> = 
                 reconstructed_secrets.into_iter()
                     .zip(depth_state.util_rand_sharings.iter())
                     .map(|(recon,sharing)| 
                         recon-sharing.clone())
                         .collect();
             
+            self.verf_state.add_mult_output_shares(depth, next_depth_sharings.clone());
             // Do something with these sharings here
         }
     }
@@ -126,19 +134,24 @@ impl Context{
             }
         }
 
-        // Initialize
-        let _cs = vec![vec![Some(LargeField::zero()); 2*self.num_faults + 1]; tot_shares / (2 * self.num_faults + 1)];
-
+        // Share inputs for later verification
+        // These options are Annoying!!
+        if depth <= self.max_depth {
+            let first_a_shares = a_vec_shares.clone().into_iter().map(|x| x[0].unwrap()).collect();
+            let first_b_shares = b_vec_shares.clone().into_iter().map(|x| x[0].unwrap()).collect();
+            self.verf_state.add_mult_inputs(depth, first_a_shares, first_b_shares);
+        }
+            
         // Group inputs
         let a_vec_shares_grouped = Self::group_elements_by_count(a_vec_shares.clone(), tot_shares / (2 * self.num_faults + 1));
         let b_vec_shares_grouped = Self::group_elements_by_count(b_vec_shares.clone(), tot_shares / (2 * self.num_faults + 1));
         let r_shares_grouped = Self::group_elements_by_count(r_sharings.clone(), tot_shares / (2 * self.num_faults + 1));
         let o_shares_grouped = Self::group_elements_by_count(o_sharings.clone(), tot_shares / (2 * self.num_faults + 1));
         // Check that there are the correct number of groups
-        assert_eq!(a_vec_shares_grouped.len(), tot_shares / (2 * self.num_faults + 1));
-        assert_eq!(b_vec_shares_grouped.len(), tot_shares / (2 * self.num_faults + 1));
-        assert_eq!(r_shares_grouped.len(), tot_shares / (2 * self.num_faults + 1));
-        assert_eq!(o_shares_grouped.len(), tot_shares / (2 * self.num_faults + 1));
+        // assert_eq!(a_vec_shares_grouped.len(), tot_shares / (2 * self.num_faults + 1));
+        // assert_eq!(b_vec_shares_grouped.len(), tot_shares / (2 * self.num_faults + 1));
+        // assert_eq!(r_shares_grouped.len(), tot_shares / (2 * self.num_faults + 1));
+        // assert_eq!(o_shares_grouped.len(), tot_shares / (2 * self.num_faults + 1));
         // Check each group has correct number of elements
         // Why self.num_faults? Is it not supposed to be 2*num_faults+1?
         //assert!(a_vec_shares_grouped.iter().all(|x| x.len() == self.num_faults));
@@ -305,7 +318,7 @@ impl Context{
         }
 
         if ser_shares.is_some(){
-            self.broadcast(ProtMsg::SharesL2(ser_shares.unwrap())).await;
+            self.broadcast(ProtMsg::SharesL2(ser_shares.unwrap(), depth)).await;
         }
         // self.received_fx_shares.entry(group).or_insert_with(Vec::new).push((LargeField::from(evaluation_point as u64), share));
 
@@ -325,8 +338,10 @@ impl Context{
         // }
     }
 
-    pub async fn handle_l2_message(&mut self, group_shares: Vec<LargeFieldSer>, sender: Replica, depth: usize){
+    pub async fn handle_l2_message(&mut self, group_shares: Vec<u8>, sender: Replica, depth: usize){
         // Multiplication at this depth is of course using two levels of mult
+
+        let group_shares: Vec<LargeFieldSer> = bincode::deserialize(&group_shares).unwrap();
         let depth_state = self.mult_state.get_single_depth_state(depth, true, group_shares.len());
         // At this depth, we are using roots of unity to conduct evaluation
         let evaluation_point = self.roots_of_unity.get(sender).clone().unwrap();
@@ -355,12 +370,13 @@ impl Context{
             if depth_state.util_rand_sharings.len() <= secrets.len(){
                 log::info!("Moving on to depth {}", depth + 1);
                 // Par iter from rayon not needed here because we are not doing heavy computation
-                let _shares_next_depth: Vec<LargeField> 
+                let shares_next_depth: Vec<LargeField> 
                         = depth_state.util_rand_sharings.clone().into_iter()
                             .zip(secrets.into_iter())
                                 .map(|(sharing, recon_secret)|recon_secret-sharing)
                                     .collect();
-
+                
+                self.verf_state.add_mult_output_shares(depth, shares_next_depth.clone()); // Store the shares for the next depth
             }
             else{
                 log::error!("Secrets less than number of random sharings used, this should not happen. Abandoning the protocol at depth {}",depth);

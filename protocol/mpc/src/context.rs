@@ -23,7 +23,7 @@ use types::{Replica, WrapperMsg, SyncMsg, SyncState};
 
 use crypto::{aes_hash::HashState};
 
-use crate::{msg::ProtMsg, handlers::{sync_handler::SyncHandler, handler::Handler}, protocol::{RandSharings, MultState}};
+use crate::{msg::ProtMsg, handlers::{sync_handler::SyncHandler, handler::Handler}, protocol::{RandSharings, MultState, VerificationState}};
 
 pub struct Context {
     /// Networking context
@@ -75,10 +75,15 @@ pub struct Context {
     pub rand_sharings_state: RandSharings,
     // Multiplication state
     pub mult_state: MultState,
+    // Verification state for multiplication triples
+    pub verf_state: VerificationState,
 
     /// Fast fourier transforms utility
     pub use_fft: bool,
     pub roots_of_unity: Vec<LargeField>,
+
+    // Max depth of the protocol
+    pub max_depth: usize,
 }
 
 impl Context {
@@ -203,9 +208,12 @@ impl Context {
 
                 rand_sharings_state: RandSharings::new(),
                 mult_state: MultState::new(),
+                verf_state: VerificationState::new(),
 
                 use_fft: use_fft,
                 roots_of_unity: acss_ab::Context::gen_roots_of_unity(config.num_nodes),
+
+                max_depth: 100,
             };
 
             // Populate secret keys from config
@@ -311,10 +319,10 @@ impl Context {
                 msg = self.net_recv.recv() => {
                     // Received messages are processed here
                     log::trace!("Got a consensus message from the network: {:?}", msg);
-                    let _msg = msg.ok_or_else(||
+                    let msg = msg.ok_or_else(||
                         anyhow!("Networking layer has closed")
                     )?;
-                    //self.process_msg(msg).await;
+                    self.process_msg(msg).await;
                 },
                 acss_msg = self.acss_ab_out_recv.recv() => {
                     let acss_msg_unwrap = acss_msg.ok_or_else(||
