@@ -82,8 +82,9 @@ pub struct Context {
     pub use_fft: bool,
     pub roots_of_unity: Vec<LargeField>,
 
-    // Max depth of the protocol
+    // Protocol parameters
     pub max_depth: usize,
+    pub compression_factor: usize,
 }
 
 impl Context {
@@ -214,6 +215,7 @@ impl Context {
                 roots_of_unity: acss_ab::Context::gen_roots_of_unity(config.num_nodes),
 
                 max_depth: 100,
+                compression_factor: 10,
             };
 
             // Populate secret keys from config

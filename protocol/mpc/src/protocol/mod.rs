@@ -12,3 +12,5 @@ mod verf_state;
 pub use verf_state::VerificationState;
 
 mod online_phase;
+
+mod compress_tup;
