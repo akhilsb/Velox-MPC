@@ -79,7 +79,8 @@ impl Context {
     pub fn spawn(
         config: Node,
         input_msgs: Receiver<(usize,Vec<LargeFieldSer>)>, 
-        output_msgs: Sender<(usize, Replica, Option<Vec<LargeFieldSer>>)>, 
+        output_msgs: Sender<(usize, Replica, Option<Vec<LargeFieldSer>>)>,
+        use_fft: bool, 
         _byz: bool
     ) -> anyhow::Result<(oneshot::Sender<()>, Vec<Result<oneshot::Sender<()>>>)> {
         // Add a separate configuration for RBC service. 
@@ -174,7 +175,7 @@ impl Context {
                 inp_ra_channel: ra_req_send_channel,
                 recv_out_ra: ra_out_recv_channel,
 
-                use_fft: true,
+                use_fft: use_fft,
 
                 // Syncer related stuff
                 // sync_send: sync_net,

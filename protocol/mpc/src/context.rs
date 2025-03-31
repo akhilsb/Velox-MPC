@@ -12,7 +12,7 @@ use network::{
     plaintcp::{CancelHandler, TcpReceiver, TcpReliableSender},
     Acknowledgement,
 };
-use protocol::LargeFieldSer;
+use protocol::{LargeFieldSer, LargeField};
 use signal_hook::{iterator::Signals, consts::{SIGINT, SIGTERM}};
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedReceiver, Receiver, Sender, channel},
@@ -23,7 +23,7 @@ use types::{Replica, WrapperMsg, SyncMsg, SyncState};
 
 use crypto::{aes_hash::HashState};
 
-use crate::{msg::ProtMsg, handlers::{sync_handler::SyncHandler, handler::Handler}, protocol::RandSharings};
+use crate::{msg::ProtMsg, handlers::{sync_handler::SyncHandler, handler::Handler}, protocol::{RandSharings, MultState}};
 
 pub struct Context {
     /// Networking context
@@ -70,8 +70,15 @@ pub struct Context {
     pub sync_send: TcpReliableSender<Replica, SyncMsg, Acknowledgement>,
     pub sync_recv: UnboundedReceiver<SyncMsg>,
 
-    // State structures for keeping track of the state of the protocol
+    /// State structures for keeping track of the state of the protocol
+    // Preparation phase: Random sharings and 2t sharings of zero
     pub rand_sharings_state: RandSharings,
+    // Multiplication state
+    pub mult_state: MultState,
+
+    /// Fast fourier transforms utility
+    pub use_fft: bool,
+    pub roots_of_unity: Vec<LargeField>,
 }
 
 impl Context {
@@ -156,6 +163,8 @@ impl Context {
         let (acs_out_send, acs_out_recv) = channel(10000);
         let threshold:usize = 10000;
         let rbc_start_id = threshold*config.id;
+
+        let use_fft = true;
         tokio::spawn(async move {
             let mut c = Context {
                 net_send: consensus_net,
@@ -193,6 +202,10 @@ impl Context {
                 sync_recv: rx_net_from_client,
 
                 rand_sharings_state: RandSharings::new(),
+                mult_state: MultState::new(),
+
+                use_fft: use_fft,
+                roots_of_unity: acss_ab::Context::gen_roots_of_unity(config.num_nodes),
             };
 
             // Populate secret keys from config
@@ -210,6 +223,7 @@ impl Context {
             acss_ab_config,
             acss_ab_recv,
             acss_ab_out_send,
+            use_fft,
             false,
         );
         if status.is_err() {
@@ -220,9 +234,10 @@ impl Context {
             sh2t_config,
             sh2t_recv,
             sh2t_out_send,
+            use_fft,
             false,
         );
-        
+
         if status_sh2t.is_err() {
             log::error!("Error spawning status_sh2t because of {:?}", status_sh2t.err().unwrap());
         }

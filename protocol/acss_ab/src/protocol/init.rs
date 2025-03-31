@@ -5,6 +5,7 @@ use crypto::{hash::{do_hash, Hash}, aes_hash::MerkleTree};
 use lambdaworks_math::{unsigned_integer::element::UnsignedInteger, polynomial::Polynomial, traits::ByteConversion};
 use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, sample_polynomials_from_prf};
 use rand::random;
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use types::Replica;
 
 use super::ACSSABState;
@@ -282,8 +283,8 @@ impl Context{
         }
 
         // Second, verify DZK proof
-        let shares_ff: Vec<LargeField> = shares.into_iter().map(|el| LargeField::from_bytes_be(el.as_slice()).unwrap()).collect();
-        let dzk_poly_coeffs: Vec<LargeField> = dzk_coeffs.into_iter().map(|el| LargeField::from_bytes_be(el.as_slice()).unwrap()).collect();
+        let shares_ff: Vec<LargeField> = shares.into_par_iter().map(|el| LargeField::from_bytes_be(el.as_slice()).unwrap()).collect();
+        let dzk_poly_coeffs: Vec<LargeField> = dzk_coeffs.into_par_iter().map(|el| LargeField::from_bytes_be(el.as_slice()).unwrap()).collect();
         let dzk_poly = Polynomial::new(dzk_poly_coeffs.as_slice());
         // Change this to be root of unity
         let dzk_point;

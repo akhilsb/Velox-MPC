@@ -2,8 +2,8 @@ use std::{collections::HashMap, ops::{Add, Mul}};
 
 use lambdaworks_math::traits::ByteConversion;
 use protocol::{rand_field_element, LargeField, LargeFieldSer};
-use rayon::prelude::{IntoParallelIterator, ParallelIterator, IndexedParallelIterator};
-use types::Replica;
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+use types::{Replica, RBCSyncMsg, SyncMsg, SyncState};
 use crate::{context::Context};
 
 impl Context{
@@ -42,8 +42,8 @@ impl Context{
             return;
         }
 
-        let shares_deser: Vec<LargeField> = shares.unwrap().into_par_iter().enumerate().map(|x| 
-            LargeField::from_bytes_be(&x.1).unwrap()
+        let shares_deser: Vec<LargeField> = shares.unwrap().into_par_iter().map(|x| 
+            LargeField::from_bytes_be(&x).unwrap()
         ).collect();
 
         if !self.rand_sharings_state.shares.contains_key(&sender){
@@ -73,8 +73,8 @@ impl Context{
             log::info!("Finished processing random sharings, ignoring ACSS and SH2t for all subsequent batches and senders: sender {}", sender);
             return;
         }
-        let shares_deser: Vec<LargeField> = shares.unwrap().into_par_iter().enumerate().map(|x| 
-            LargeField::from_bytes_be(&x.1).unwrap()
+        let shares_deser: Vec<LargeField> = shares.unwrap().into_par_iter().map(|x| 
+            LargeField::from_bytes_be(&x).unwrap()
         ).collect();
 
         if !self.rand_sharings_state.sh2t_shares.contains_key(&sender){
@@ -123,7 +123,7 @@ impl Context{
                 // Vandermonde matrix
                 
                 let x_values: Vec<LargeField> = (2..self.num_faults+3).into_iter().map(|x| LargeField::from(x as u64)).collect();
-                let vandermonde_matrix = self.vandermonde_matrix(x_values, 2*self.num_faults+1);
+                let vandermonde_matrix = Self::vandermonde_matrix(x_values, 2*self.num_faults+1);
                 
                 // Build party-accumulated share vectors
                 let mut acs_indexed_share_groups: Vec<Vec<LargeField>> = Vec::new();
@@ -190,12 +190,13 @@ impl Context{
                 self.rand_sharings_state.shares.clear();
                 self.rand_sharings_state.sh2t_shares.clear();
 
+                self.terminate("Term".to_string()).await;
             }
         }
     }
 
     /// Constructs the Vandermonde matrix for a given set of x-values. Note that the x-values are parties and are converted to the ith root of unity for the evaluation
-    fn vandermonde_matrix(&self, x_values: Vec<LargeField>, y_vals_target: usize) -> Vec<Vec<LargeField>> {
+    pub fn vandermonde_matrix(x_values: Vec<LargeField>, y_vals_target: usize) -> Vec<Vec<LargeField>> {
         let n = x_values.len();
         let mut matrix = vec![vec![LargeField::zero(); y_vals_target]; n];
 
@@ -221,5 +222,27 @@ impl Context{
                     .fold(LargeField::zero(), |sum, (a, b)| sum.add(a.mul(b)))
             })
             .collect()
+    }
+
+    //Invoke this function once you terminate the protocol
+    pub async fn terminate(&mut self, data: String) {
+        let rbc_sync_msg = RBCSyncMsg{
+            id: 1,
+            msg: data,
+        };
+
+        let ser_msg = bincode::serialize(&rbc_sync_msg).unwrap();
+        let cancel_handler = self
+            .sync_send
+            .send(
+                0,
+                SyncMsg {
+                    sender: self.myid,
+                    state: SyncState::COMPLETED,
+                    value: ser_msg,
+                },
+            )
+            .await;
+        self.add_cancel_handler(cancel_handler);
     }
 }

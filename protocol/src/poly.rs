@@ -5,6 +5,7 @@ use lambdaworks_math::{unsigned_integer::element::UnsignedInteger, polynomial::P
 use rand::random;
 use rand_chacha::ChaCha20Rng;
 use rand_core::{SeedableRng, RngCore};
+use rayon::prelude::{IntoParallelIterator, ParallelIterator, IntoParallelRefIterator};
 use types::Replica;
 
 use crate::LargeField;
@@ -50,19 +51,18 @@ pub async fn generate_evaluation_points(
     }
     
     // Generate coefficients of polynomial and then evaluate the polynomial at n points
-    let coefficients: Vec<Polynomial<LargeField>> = evaluations_prf.into_iter().map(|evals| {
+    let coefficients: Vec<Polynomial<LargeField>> = evaluations_prf.into_par_iter().map(|evals| {
         return Polynomial::interpolate(evaluation_points.as_slice(), evals.as_slice()).unwrap()
     }).collect();
 
     // Evaluate the polynomial at n points
-    let mut evaluations_full = Vec::new();
-    for polynomial in coefficients.iter(){
+    let evaluations_full = coefficients.par_iter().map(|polynomial|{
         let mut eval_vec_ind = Vec::new();
         for index in 0..shares_total{
             eval_vec_ind.push(polynomial.evaluate(&LargeField::new(UnsignedInteger::from((index+1) as u64))));
         }
-        evaluations_full.push(eval_vec_ind);
-    }
+        return eval_vec_ind;
+    }).collect();
     (evaluations_full,coefficients)
 }
 
@@ -74,21 +74,19 @@ pub async fn generate_evaluation_points_fft(
     Vec<Polynomial<LargeField>>
 ){
     // For FFT evaluations, first sample coefficients of polynomial and then interpolate all n points
-    let mut coefficients = Vec::new();
-    for secret in secrets.clone().into_iter(){
+    let coefficients: Vec<Polynomial<LargeField>> = secrets.into_par_iter().map(|secret| {
         let mut coeffs_single_poly = Vec::new();
         coeffs_single_poly.push(secret);
         for _ in 0..degree_poly{
             coeffs_single_poly.push(rand_field_element());
         }
-        coefficients.push(Polynomial::new(&coeffs_single_poly));
-    }
+        return Polynomial::new(&coeffs_single_poly);
+    }).collect();
 
-    let mut evaluations = Vec::new();
-    for poly_coeffs in coefficients.iter(){
+    let evaluations = coefficients.par_iter().map(|poly_coeffs|{
         let poly_evaluations_fft = Polynomial::evaluate_fft::<MontgomeryBackendPrimeField<MontgomeryConfigStark252PrimeField, 4>>(poly_coeffs, 1, Some(shares_total)).unwrap();
-        evaluations.push(poly_evaluations_fft);
-    }
+        poly_evaluations_fft
+    }).collect();
     (evaluations, coefficients)
 }
 
