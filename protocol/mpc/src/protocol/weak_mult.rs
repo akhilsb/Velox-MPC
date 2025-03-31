@@ -10,40 +10,88 @@ use types::{WrapperMsg, Replica};
 use crate::{Context, msg::ProtMsg};
 
 impl Context{
-    pub async fn quadratic_multiplication_prot(&mut self, a_shares: Vec<Vec<LargeField>>, b_shares: Vec<Vec<LargeField>>){
+    pub async fn quadratic_multiplication_prot(&mut self, a_shares: Vec<Vec<LargeField>>, b_shares: Vec<Vec<LargeField>>, depth: usize){
         log::info!("Starting quadratic multiplication protocol");
         if a_shares.len() != b_shares.len() {
             log::error!("Quadratic multiplication protocol failed: a and b shares length mismatch");
             return;
         }
         let n = a_shares.len();
-        let _result_shares = vec![LargeField::zero(); n];
+        let depth_state = self.mult_state.get_single_depth_state(depth, false, n);
 
         // Poll the r multiplication random shares
         // Pull n shares from r_sharings and n/2 shares from o sharings
 
         let mut rand_sharings = Vec::new();
         let mut zero_sharings = Vec::new();
-        for index in 0..n{
-            if self.rand_sharings_state.rand_sharings_mult.len() > 0 {
+        for _ in 0..n{
+            if self.rand_sharings_state.rand_sharings_mult.len() > 0 && self.rand_sharings_state.rand_2t_sharings_mult.len()>0{
                 rand_sharings.push(self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap());
+                zero_sharings.push(self.rand_sharings_state.rand_2t_sharings_mult.pop_front().unwrap());
             } else {
                 log::error!("Not enough random shares for multiplication protocol");
                 return;
             }
-            if index > n/2 -1 {
-                if self.rand_sharings_state.sh2t_shares.len() > 0 {
-                    zero_sharings.push(self.rand_sharings_state.rand_2t_sharings_mult.pop_front().unwrap());
-                } else {
-                    log::error!("Not enough random shares for multiplication protocol");
-                    return;
-                }
-            }
         }
-        // Perform multiplication
 
+        // Share rand_utils
+        depth_state.util_rand_sharings.extend(rand_sharings.clone());
+        
+        // Perform multiplication
+        let mult_shares = 
+            (a_shares.into_par_iter()
+                .zip(b_shares.into_par_iter()))
+            .zip(rand_sharings.into_par_iter()
+                .zip(zero_sharings.into_par_iter()))
+            .map(|((a,b),(r,o))| (Self::dot_product(&a,&b)+r+o).to_bytes_be())
+            .collect::<Vec<LargeFieldSer>>(); // Perform dot product and add random shares
+
+        let ser_shares = bincode::serialize(&mult_shares).unwrap();
+        self.broadcast(ProtMsg::QuadShares(ser_shares, depth)).await;
     }
 
+    pub async fn handle_quadratic_mult_shares(&mut self, depth: usize, shares: Vec<u8>, sender: Replica){
+        log::info!("Handling quadratic multiplication shares for depth {} from sender {}", depth, sender);
+        // Deserialize shares
+        let shares_deser = bincode::deserialize::<Vec<LargeFieldSer>>(&shares).unwrap();
+        let shares_lf: Vec<LargeField> = shares_deser.into_iter().map(|x| LargeField::from_bytes_be(&x).unwrap()).collect();
+
+        let evaluation_point = Self::get_share_evaluation_point(sender,self.use_fft, self.roots_of_unity.clone());
+
+        // Add shares to the depth state
+        let depth_state = self.mult_state.get_single_depth_state(depth, false, shares_lf.len());
+        for (share,(indices, shares)) 
+                in shares_lf.into_iter().zip(depth_state.l1_shares.iter_mut()){
+            indices.push(evaluation_point);
+            shares.push(share);
+        }
+
+        depth_state.recv_share_count_l1 = depth_state.recv_share_count_l1 + 1; // Increment the count of received shares
+        
+        if depth_state.recv_share_count_l1 == self.num_nodes - self.num_faults{
+            // Reconstruct secrets
+            log::info!("Received n-t shares for quadratic protocol reconstruction at depth {}, reconstructing secrets", depth);
+            let reconstructed_secrets: Vec<LargeField> 
+                = depth_state.l1_shares.par_iter()
+                .map(|(indices, evaluations)|{
+                    Polynomial::interpolate(
+                        indices, // Indices are the evaluation points
+                        evaluations // Evaluations are the shares
+                    ).unwrap().evaluate(&LargeField::zero())
+                }).collect();
+            
+            depth_state.l1_shares_reconstructed.extend(reconstructed_secrets.clone());
+            // Now, subtract random sharings from the reconstructed secrets
+            let _next_depth_sharings: Vec<LargeField> = 
+                reconstructed_secrets.into_iter()
+                    .zip(depth_state.util_rand_sharings.iter())
+                    .map(|(recon,sharing)| 
+                        recon-sharing.clone())
+                        .collect();
+            
+            // Do something with these sharings here
+        }
+    }
 
     pub async fn linear_multiplication_prot(&mut self, a_vec_shares: Vec<Vec<Option<LargeField>>>, b_vec_shares: Vec<Vec<Option<LargeField>>>, depth: usize, lin_or_quadratic: bool) {
         let tot_shares = a_vec_shares.len();
@@ -159,7 +207,7 @@ impl Context{
 
         // Send shares for all groups to all parties
         for (party,shares) in shares_party.into_iter(){
-            let ser_shares: Vec<Option<LargeFieldSer>> = shares.into_par_iter().map(|share| {
+            let ser_shares: Vec<Option<LargeFieldSer>> = shares.into_iter().map(|share| {
                 if share.is_none(){
                     return None;
                 }
@@ -226,7 +274,7 @@ impl Context{
         }
         // Received message as L1 share so multiplication at this depth must be linear
         
-        let shares: Vec<LargeField> = shares_ser.into_par_iter().map(|share| {
+        let shares: Vec<LargeField> = shares_ser.into_iter().map(|share| {
             return LargeField::from_bytes_be(&share.unwrap()).unwrap();
         }).collect();
 
@@ -239,9 +287,10 @@ impl Context{
             depth_state.l1_shares[index].1.push(share);
         }
         
-        depth_state.recv_share_count_l1 = depth_state.recv_share_count_l1.clone().add(1).into();
-
-        if depth_state.recv_share_count_l1 == (self.num_nodes - self.num_faults).into(){
+        depth_state.recv_share_count_l1 +=1;
+        //depth_state.recv_share_count_l1 = depth_state.recv_share_count_l1.clone().add(1).into();
+        let mut ser_shares = None;
+        if depth_state.recv_share_count_l1.eq(&(self.num_nodes - self.num_faults)){
             // Start reconstruction here
             let secrets: Vec<LargeField> = depth_state.l1_shares.par_iter().map(|(indices,group_shares)|{
                 let poly = Polynomial::interpolate(indices, group_shares).unwrap();
@@ -251,10 +300,12 @@ impl Context{
 
             depth_state.l1_shares_reconstructed.extend(secrets.clone());
 
-            let ser_shares: Vec<LargeFieldSer> = secrets.into_par_iter().map(|el| el.to_bytes_be()).collect();
-            let ser_shares = bincode::serialize(&ser_shares).unwrap();
-            
-            self.broadcast(ProtMsg::SharesL2(ser_shares)).await;
+            let shares_bytes: Vec<LargeFieldSer> = secrets.into_iter().map(|el| el.to_bytes_be()).collect();
+            ser_shares = Some(bincode::serialize(&shares_bytes).unwrap());
+        }
+
+        if ser_shares.is_some(){
+            self.broadcast(ProtMsg::SharesL2(ser_shares.unwrap())).await;
         }
         // self.received_fx_shares.entry(group).or_insert_with(Vec::new).push((LargeField::from(evaluation_point as u64), share));
 
@@ -286,9 +337,9 @@ impl Context{
             state.1.push(group_lf_share); // Store the share itself
         }
 
-        depth_state.recv_share_count_l2 = depth_state.recv_share_count_l2.clone().add(1).into();
+        depth_state.recv_share_count_l2 +=1;
         // Interpolate polynomial
-        if depth_state.recv_share_count_l2 == (self.num_nodes - self.num_faults).into() {
+        if depth_state.recv_share_count_l2 == (self.num_nodes - self.num_faults) {
             // We have enough shares to reconstruct the polynomial
             let secrets: Vec<LargeField> = depth_state.l2_shares.par_iter().map(|(indices,group_shares)|{
                 let poly = Polynomial::interpolate(indices, group_shares).unwrap();
@@ -303,9 +354,10 @@ impl Context{
 
             if depth_state.util_rand_sharings.len() <= secrets.len(){
                 log::info!("Moving on to depth {}", depth + 1);
+                // Par iter from rayon not needed here because we are not doing heavy computation
                 let _shares_next_depth: Vec<LargeField> 
-                        = depth_state.util_rand_sharings.clone().into_par_iter()
-                            .zip(secrets.into_par_iter())
+                        = depth_state.util_rand_sharings.clone().into_iter()
+                            .zip(secrets.into_iter())
                                 .map(|(sharing, recon_secret)|recon_secret-sharing)
                                     .collect();
 
@@ -433,8 +485,8 @@ impl Context{
         assert_eq!(a.len(), b.len(), "Vectors must have the same length");
     
         // Compute the dot product
-        a.par_iter()
-            .zip(b.par_iter())
+        a.iter()
+            .zip(b.iter())
             .map(|(x, y)| *x * *y)
             .sum()
     }
@@ -447,7 +499,7 @@ impl Context{
     }
 
     pub(crate) fn contains_only_some<T: Send + Sync>(values: &Vec<Option<T>>) -> bool {
-        values.par_iter().find_any(|value| value.is_none()).is_none()
+        values.iter().find(|value| value.is_none()).is_none()
     }
 
     pub fn get_share_evaluation_point(party: usize, use_fft:bool, roots_of_unity: Vec<LargeField>)-> LargeField{

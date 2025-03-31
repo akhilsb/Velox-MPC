@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap};
 
 use protocol::LargeField;
 
@@ -16,8 +16,9 @@ pub struct SingleDepthState{
     pub util_rand_sharings: Vec<LargeField>,
     
     pub two_levels: bool,
-    pub recv_share_count_l1: Arc<usize>,
-    pub recv_share_count_l2: Arc<usize>,
+    // TODO: replace these with mutexes
+    pub recv_share_count_l1: usize,
+    pub recv_share_count_l2: usize,
 }
 
 impl SingleDepthState{
@@ -32,8 +33,8 @@ impl SingleDepthState{
             util_rand_sharings: Vec::new(),
 
             two_levels,
-            recv_share_count_l1: Arc::new(0),
-            recv_share_count_l2: Arc::new(0),
+            recv_share_count_l1: 0,
+            recv_share_count_l2: 0,
         }
     }
 }
