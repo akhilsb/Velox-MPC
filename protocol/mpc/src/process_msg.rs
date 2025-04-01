@@ -46,9 +46,9 @@ impl Context {
                     log::debug!("Received Init for instance id {} from node : {}", depth, wrapper_msg.sender);
                     self.handle_quadratic_mult_shares(depth,main_msg, wrapper_msg.sender).await;
                 },
-                ProtMsg::ReconstructCoin() => {
-                    
+                ProtMsg::ReconstructCoin(ser_share, depth) => {
                     log::debug!("Received ReconstructCoin message");
+                    self.handle_common_coin(ser_share, wrapper_msg.sender, depth).await;
                     //self.handle_deliver(avid_shard, origin, wrapper_msg.sender, instance_id).await;
                 }
             }

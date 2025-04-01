@@ -1,8 +1,8 @@
-use lambdaworks_math::polynomial::Polynomial;
-use protocol::LargeField;
+use lambdaworks_math::{polynomial::Polynomial, traits::ByteConversion};
+use protocol::{LargeField, LargeFieldSer};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator, IntoParallelRefIterator};
 
-use crate::Context;
+use crate::{Context, msg::ProtMsg};
 
 use super::ex_compr_state::ExComprState;
 
@@ -147,7 +147,7 @@ impl Context{
         ex_compr_state.h_poly = h_polynomial.clone();
 
         // Toss coin here
-        
+
     }
 
     // pub async fn on_ex_mult_terminating(self: &mut Context, z_i_shares: Vec<Vec<LargeField>>) {
@@ -186,10 +186,6 @@ impl Context{
     //     }
 
     // }
-    
-    pub fn PiCoin(self: &mut Context) -> LargeField {
-        return LargeField::zero(); // TODO: call actual implementation!
-    }
 
     pub fn gen_evaluation_points_ex_compr(poly_def_points_count: usize)-> (Vec<LargeField>, Vec<LargeField>) {
         let mut first_set = Vec::with_capacity(poly_def_points_count);

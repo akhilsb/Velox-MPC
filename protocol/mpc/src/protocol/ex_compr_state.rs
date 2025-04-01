@@ -14,6 +14,10 @@ pub struct ExComprState{
     pub extended_x_sharings: Vec<Vec<LargeField>>,
     pub extended_y_sharings: Vec<Vec<LargeField>>,
     pub extended_mult_sharings: Vec<LargeField>,
+
+    // Tuple represents ordered evaluation indices as well as the shares
+    pub coin_toss_shares: (Vec<LargeField>, Vec<LargeField>),
+    pub coin_output: LargeField
 }
 
 impl ExComprState{
@@ -31,6 +35,9 @@ impl ExComprState{
             extended_x_sharings: Vec::new(),
             extended_y_sharings: Vec::new(),
             extended_mult_sharings: Vec::new(),
+
+            coin_toss_shares: (Vec::new(), Vec::new()), // Initialize with empty vectors for coin toss shares
+            coin_output: LargeField::zero() // Initialize with a zero value, will be set later
         }
     }    
 }

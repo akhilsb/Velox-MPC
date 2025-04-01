@@ -1,3 +1,4 @@
+use protocol::LargeFieldSer;
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -7,5 +8,6 @@ pub enum ProtMsg{
     SharesL2(Vec<u8>, usize),
 
     QuadShares(Vec<u8>, usize),
-    ReconstructCoin()
+    // Serialized share, depth of the circuit where the coin is being called
+    ReconstructCoin(LargeFieldSer, usize)
 }

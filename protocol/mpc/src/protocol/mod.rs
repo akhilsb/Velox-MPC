@@ -16,3 +16,5 @@ mod online_phase;
 mod compress_tup;
 
 mod ex_compr_state;
+
+mod common_coin;
