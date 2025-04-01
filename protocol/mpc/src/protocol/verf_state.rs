@@ -2,10 +2,14 @@ use std::collections::HashMap;
 
 use protocol::LargeField;
 
+use super::ex_compr_state::ExComprState;
+
 pub struct VerificationState{
     // A vector of multiplication tuples (a,b,a*b) to be verified at each depth
     pub mult_tuples: HashMap<usize, (Vec<LargeField>, Vec<LargeField>, Vec<LargeField>)>,
-    pub compression_levels_shares: HashMap<usize, (Vec<LargeField>, Vec<LargeField>, Vec<LargeField>)>
+    pub compression_levels_shares: HashMap<usize, (Vec<LargeField>, Vec<LargeField>, Vec<LargeField>)>,
+
+    pub ex_compr_state: HashMap<usize, ExComprState>,
 }
 
 impl VerificationState{
@@ -13,6 +17,8 @@ impl VerificationState{
         VerificationState{
             mult_tuples: HashMap::new(),
             compression_levels_shares: HashMap::new(),
+
+            ex_compr_state: HashMap::new(),
         }
     }
 
@@ -27,5 +33,20 @@ impl VerificationState{
         // For each multiplication tuple at this depth, we will assign the output share
         let entry = self.mult_tuples.entry(depth).or_insert_with(|| (Vec::new(), Vec::new(), Vec::new()));
         entry.2.extend(output_shares); // Add the shares of the output to the third vector
+    }
+
+    pub fn add_compression_level_state(&mut self, 
+        depth: usize, 
+        x_shares: Vec<Vec<LargeField>>, 
+        y_shares: Vec<Vec<LargeField>>, 
+        z_shares: Vec<LargeField>
+    ){
+        let entry = self.ex_compr_state.entry(depth).or_insert_with(|| ExComprState::new(depth) );
+        // Add the shares of x
+        entry.x_sharings.extend(x_shares);
+        // Add the shares of y
+        entry.y_sharings.extend(y_shares);
+        // Add the shares of z
+        entry.mult_sharings.extend(z_shares);
     }
 }

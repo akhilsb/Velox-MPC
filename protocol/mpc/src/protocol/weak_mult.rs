@@ -10,6 +10,10 @@ use types::{WrapperMsg, Replica};
 use crate::{Context, msg::ProtMsg};
 
 impl Context{
+    pub async fn choose_multiplication_protocol(&mut self, a_shares: Vec<Vec<LargeField>>, b_shares: Vec<Vec<LargeField>>, depth: usize){
+        self.quadratic_multiplication_prot(a_shares, b_shares, depth).await;
+    }
+
     pub async fn quadratic_multiplication_prot(&mut self, a_shares: Vec<Vec<LargeField>>, b_shares: Vec<Vec<LargeField>>, depth: usize){
         log::info!("Starting quadratic multiplication protocol");
         if a_shares.len() != b_shares.len() {
@@ -98,6 +102,10 @@ impl Context{
             
             self.verf_state.add_mult_output_shares(depth, next_depth_sharings.clone());
             // Do something with these sharings here
+            if depth > self.max_depth{
+                // These sharings belong to verification state
+                
+            }
         }
     }
 

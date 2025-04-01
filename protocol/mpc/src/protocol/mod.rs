@@ -14,3 +14,5 @@ pub use verf_state::VerificationState;
 mod online_phase;
 
 mod compress_tup;
+
+mod ex_compr_state;
