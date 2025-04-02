@@ -38,7 +38,7 @@ impl Context{
             ex_compr_state.coin_output = Some(coin_value);
             // Trigger subsequent phase here. 
             log::info!("Reconstructed common coin at depth {}: {:?}", depth, ex_compr_state.coin_output);
-            
+            self.handle_coin_termination(depth).await;
         }
 
     }
