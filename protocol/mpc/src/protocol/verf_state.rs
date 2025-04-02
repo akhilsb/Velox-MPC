@@ -7,8 +7,6 @@ use super::ex_compr_state::ExComprState;
 pub struct VerificationState{
     // A vector of multiplication tuples (a,b,a*b) to be verified at each depth
     pub mult_tuples: HashMap<usize, (Vec<LargeField>, Vec<LargeField>, Vec<LargeField>)>,
-    pub compression_levels_shares: HashMap<usize, (Vec<LargeField>, Vec<LargeField>, Vec<LargeField>)>,
-
     pub ex_compr_state: HashMap<usize, ExComprState>,
 }
 
@@ -16,8 +14,6 @@ impl VerificationState{
     pub fn new() -> Self {
         VerificationState{
             mult_tuples: HashMap::new(),
-            compression_levels_shares: HashMap::new(),
-
             ex_compr_state: HashMap::new(),
         }
     }

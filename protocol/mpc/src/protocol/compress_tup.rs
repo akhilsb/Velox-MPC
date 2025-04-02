@@ -7,18 +7,6 @@ use crate::{Context};
 use super::ex_compr_state::ExComprState;
 
 impl Context{
-    // This function will be used to compress the multiplication tuples
-    // It will take the shares of a, b, and the output and compress them into a single representation
-    pub fn compress_multiplication_tuples(&mut self) -> Result<(), String> {
-        // Here we will implement the logic for compressing the multiplication tuples
-        // This might involve some form of serialization or aggregation of the shares
-        
-        let depth_factor = self.compression_factor;
-        // Reduce multiplicative depth by a factor of k in each iteration
-
-        Ok(())
-    }
-
     // This method starts compression from the second level onwards
     pub async fn start_compression_level(&mut self, x_vector: Vec<LargeField>, y_vector: Vec<LargeField>, agg_val: LargeField, depth: usize){
         // Split into chunks for compression
@@ -69,6 +57,8 @@ impl Context{
         if !ex_compr_state.extended_mult_sharings.is_empty() && !ex_compr_state.extended_x_sharings.is_empty(){
             // Directly go to the extended protocol now. 
             // TODO: something here
+            self.handle_level_termination(depth).await;
+            return;
         }
 
         let (first_set_eval_points, second_set_eval_points) = 
@@ -195,43 +185,6 @@ impl Context{
 
         self.start_compression_level(x_points, y_points, h_point, depth+2).await;
     }
-
-    // pub async fn on_ex_mult_terminating(self: &mut Context, z_i_shares: Vec<Vec<LargeField>>) {
-    //     assert_eq!(z_i_shares.len(), self.N); // self.N / (self.num_faults + 1)
-    //     assert_eq!(z_i_shares[0].len(), 2*self.num_faults + 1);
-    //     assert!(z_i_shares.windows(2).all(|w| w[0].len() == w[1].len()));
-
-    //     // flatten z_i_shares
-    //     let z_i_shares_flat: Vec<LargeField> = z_i_shares.into_iter().flatten().collect_vec();
-    //     assert_eq!(z_i_shares_flat.len(), self.N);
-
-    //     // compute coefficients of h(.) from points [(alpha_1, z_1), (alpha_1, z_1), ..., (alpha_{2N-1}, z_{2N-1})]
-    //     assert_eq!(self.alpha_i.len(), z_i_shares_flat.len());
-    //     assert_eq!(self.alpha_i.len(), 2*self.N - 1);
-    //     let shares: Vec<(LargeField, LargeField)> = zip(
-    //         self.alpha_i.clone(), z_i_shares_flat.clone()).collect_vec();
-    //     let h_coefficients = interpolate_polynomial(shares);
-
-    //     let r: LargeField = self.PiCoin();
-
-    //     if any(&self.alpha_i, |alpha| *alpha == r) {
-    //         // self.terminate() // FAIL // TODO
-    //     } else {
-    //         let mut f: Vec<LargeField> = Vec::new();
-    //         let mut g: Vec<LargeField> = Vec::new();
-    //         let h:  LargeField = evaluate_polynomial_from_coefficients_at_position(h_coefficients.clone(), r);
-    //         assert_eq!(self.f_vec_coefficient_shares.len(), self.g_vec_coefficient_shares.len());
-    //         for i in 0..self.f_vec_coefficient_shares.len() {
-    //             let f_val = evaluate_polynomial_from_coefficients_at_position(self.f_vec_coefficient_shares[i].clone(), r);
-    //             let g_val = evaluate_polynomial_from_coefficients_at_position(self.g_vec_coefficient_shares[i].clone(), r);
-    //             f.push(f_val);
-    //             g.push(g_val);
-    //         }
-
-    //         // self.terminate() // f, g, h // TODO
-    //     }
-
-    // }
 
     pub fn gen_evaluation_points_ex_compr(poly_def_points_count: usize)-> (Vec<LargeField>, Vec<LargeField>) {
         let mut first_set = Vec::with_capacity(poly_def_points_count);

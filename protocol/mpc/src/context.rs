@@ -84,6 +84,7 @@ pub struct Context {
 
     // Protocol parameters
     pub max_depth: usize,
+    pub delinearization_depth: usize, 
     pub compression_factor: usize,
 }
 
@@ -215,6 +216,7 @@ impl Context {
                 roots_of_unity: acss_ab::Context::gen_roots_of_unity(config.num_nodes),
 
                 max_depth: 100,
+                delinearization_depth: 5000, 
                 compression_factor: 10,
             };
 
