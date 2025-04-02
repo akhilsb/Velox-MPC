@@ -48,7 +48,7 @@ impl Context {
                 },
                 ProtMsg::ReconstructCoin(ser_share, depth) => {
                     log::debug!("Received ReconstructCoin message");
-                    self.handle_common_coin(ser_share, wrapper_msg.sender, depth).await;
+                    self.handle_common_coin_msg(ser_share, wrapper_msg.sender, depth).await;
                     //self.handle_deliver(avid_shard, origin, wrapper_msg.sender, instance_id).await;
                 }
             }

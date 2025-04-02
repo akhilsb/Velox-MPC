@@ -1,8 +1,8 @@
-use lambdaworks_math::{polynomial::Polynomial, traits::ByteConversion};
-use protocol::{LargeField, LargeFieldSer};
+use lambdaworks_math::{polynomial::Polynomial};
+use protocol::{LargeField};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator, IntoParallelRefIterator};
 
-use crate::{Context, msg::ProtMsg};
+use crate::{Context};
 
 use super::ex_compr_state::ExComprState;
 
@@ -19,8 +19,35 @@ impl Context{
         Ok(())
     }
 
+    // This method starts compression from the second level onwards
+    pub async fn start_compression_level(&mut self, x_vector: Vec<LargeField>, y_vector: Vec<LargeField>, agg_val: LargeField, depth: usize){
+        // Split into chunks for compression
+        let num_chunks = self.compression_factor;
+        let mut x_vec_chunks: Vec<Vec<LargeField>> = x_vector.chunks(num_chunks).into_iter().map(|chunk| chunk.to_vec()).collect();
+        let mut y_vec_chunks: Vec<Vec<LargeField>> = y_vector.chunks(num_chunks).into_iter().map(|chunk| chunk.to_vec()).collect();
+        let mult_value = agg_val;
+
+        if !self.verf_state.ex_compr_state.contains_key(&depth){
+            let ex_compr_state = ExComprState::new(depth);
+            self.verf_state.ex_compr_state.insert(depth, ex_compr_state);
+        }
+
+        let ex_compr_state = self.verf_state.ex_compr_state.get_mut(&depth).unwrap();
+        // Save the first tuple in the Structure
+        let first_x_chunk = x_vec_chunks.pop().unwrap();
+        let first_y_chunk = y_vec_chunks.pop().unwrap();
+        ex_compr_state.rem_mult_tup = Some((first_x_chunk, first_y_chunk, mult_value));
+
+        // Save the multiplication results in the structure
+        ex_compr_state.x_sharings.extend(x_vec_chunks.clone());
+        ex_compr_state.y_sharings.extend(y_vec_chunks.clone());
+
+        // Multiply these tuples using ex_mult
+        self.choose_multiplication_protocol(x_vec_chunks, y_vec_chunks, depth).await;
+    }
+
     // This function takes a two-layered vector: 
-    // First layer is a vector of tuples
+    // First layer is a vector of tuples    
     // Second layer is encompasses a set of k vectors.  
     pub async fn ex_compression_tuples(&mut self, depth: usize) {
         // create polynomials on x and y
@@ -80,8 +107,8 @@ impl Context{
             }
         }
 
-        ex_compr_state.x_polys.extend(x_polynomials);
-        ex_compr_state.y_polys.extend(y_polynomials);
+        ex_compr_state.x_polys = Some(x_polynomials);
+        ex_compr_state.y_polys = Some(y_polynomials);
 
         ex_compr_state.extended_x_sharings.extend(x_poly_evals_ss.clone());
         ex_compr_state.extended_y_sharings.extend(y_poly_evals_ss.clone()); // Store the evaluations in the state for future reference
@@ -108,6 +135,7 @@ impl Context{
             let depth_state_ex_compr = depth - 1;
             let ex_compr_state = self.verf_state.ex_compr_state.entry(depth_state_ex_compr).or_insert_with(|| ExComprState::new(depth));
             ex_compr_state.extended_mult_sharings.extend(mult_result.clone()); // Store the multiplication results for the next round of compression
+            self.handle_level_termination(depth_state_ex_compr).await;
         }
     }
 
@@ -117,16 +145,16 @@ impl Context{
             return;
         }
         let ex_compr_state = self.verf_state.ex_compr_state.get_mut(&depth).unwrap();
-        if ex_compr_state.x_polys.is_empty() ||
-            ex_compr_state.y_polys.is_empty() ||
+        if ex_compr_state.x_polys.is_none() ||
+            ex_compr_state.y_polys.is_none() ||
             ex_compr_state.extended_x_sharings.is_empty() || 
             ex_compr_state.extended_y_sharings.is_empty() || 
             ex_compr_state.extended_mult_sharings.is_empty() {
             // We haven't filled the extended sharings yet, return early
-            log::error!("handle_level_termination: Not enough data to proceed with level termination at depth {}. x_polys: {}, y_polys: {}, extended_x_sharings: {}, extended_y_sharings: {}, extended_mult_sharings: {}",
+            log::error!("handle_level_termination: Not enough data to proceed with level termination at depth {}. x_polys: {:?}, y_polys: {:?}, extended_x_sharings: {}, extended_y_sharings: {}, extended_mult_sharings: {}",
                 depth,
-                ex_compr_state.x_polys.len(),
-                ex_compr_state.y_polys.len(),
+                0,
+                0,
                 ex_compr_state.extended_x_sharings.len(),
                 ex_compr_state.extended_y_sharings.len(),
                 ex_compr_state.extended_mult_sharings.len());
@@ -144,10 +172,28 @@ impl Context{
         log::info!("Interpolated H polynomial with degree {} at ExCompr at depth {}", h_polynomial.degree(), depth);
 
         // Evaluate x,y,h polynomials at a random point to get final value at this level
-        ex_compr_state.h_poly = h_polynomial.clone();
+        ex_compr_state.h_poly = Some(h_polynomial.clone());
 
         // Toss coin here
+        self.toss_common_coin(depth).await;
+    }
 
+    pub async fn handle_coin_termination(&mut self, depth: usize) {
+        let ex_compr_state = self.verf_state.ex_compr_state.get_mut(&depth).unwrap();
+        if ex_compr_state.h_poly.is_none() || ex_compr_state.x_polys.is_none() || ex_compr_state.y_polys.is_none() || ex_compr_state.coin_output.is_none() {
+            log::warn!("handle_coin_termination: h_poly is None at depth {}. Cannot proceed with coin termination.", depth);
+            return;
+        }
+        let h_polynomial = ex_compr_state.h_poly.as_ref().unwrap();
+        let x_poly_vec = ex_compr_state.x_polys.as_ref().unwrap();
+        let y_poly_vec = ex_compr_state.y_polys.as_ref().unwrap();
+
+        let coin_eval_point = ex_compr_state.coin_output.clone().unwrap();
+        let h_point = h_polynomial.evaluate(&coin_eval_point);
+        let x_points: Vec<LargeField> = x_poly_vec.par_iter().map(|poly| poly.evaluate(&coin_eval_point)).collect();
+        let y_points: Vec<LargeField> = y_poly_vec.par_iter().map(|poly| poly.evaluate(&coin_eval_point)).collect();
+
+        self.start_compression_level(x_points, y_points, h_point, depth+2).await;
     }
 
     // pub async fn on_ex_mult_terminating(self: &mut Context, z_i_shares: Vec<Vec<LargeField>>) {

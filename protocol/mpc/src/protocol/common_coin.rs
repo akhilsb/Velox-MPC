@@ -15,7 +15,7 @@ impl Context{
         self.broadcast(prot_msg).await;
     }
 
-    pub async fn handle_common_coin(&mut self, lf_share: LargeFieldSer, sender: usize, depth: usize){
+    pub async fn handle_common_coin_msg(&mut self, lf_share: LargeFieldSer, sender: usize, depth: usize){
         if !self.verf_state.ex_compr_state.contains_key(&depth){
             self.verf_state.ex_compr_state.insert(depth, ExComprState::new(depth));
         }
@@ -35,8 +35,10 @@ impl Context{
                 &ex_compr_state.coin_toss_shares.1
             ).unwrap();
             let coin_value = polynomial.evaluate(&LargeField::zero());
-            ex_compr_state.coin_output = coin_value;
+            ex_compr_state.coin_output = Some(coin_value);
             // Trigger subsequent phase here. 
+            log::info!("Reconstructed common coin at depth {}: {:?}", depth, ex_compr_state.coin_output);
+            
         }
 
     }
