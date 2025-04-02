@@ -1,3 +1,5 @@
+use protocol::LargeField;
+
 use crate::Context;
 
 impl Context{
@@ -6,6 +8,10 @@ impl Context{
     pub async fn delinearize_mult_tuples(&mut self){
         // Here we will implement the logic for compressing the multiplication tuples
         // This might involve some form of serialization or aggregation of the shares
+        self.toss_common_coin(self.delinearization_depth).await;
+    }
+
+    pub async fn handle_coin_toss_deserialization(&mut self, coin_value: LargeField){
         
         let _depth_factor = self.compression_factor;
         // Reduce multiplicative depth by a factor of k in each iteration
@@ -23,12 +29,19 @@ impl Context{
             y_values.extend(verf_state.1.clone());
             mult_values.extend(verf_state.2.clone());
         }
+        if x_values.len() != y_values.len() || x_values.len() != mult_values.len(){
+            log::error!("Invalid number of shares for delinearization {} {} {}, abandoning process", x_values.len(), y_values.len(), mult_values.len());
+        }
+        let mut r_iter = LargeField::one();
+        for (x,mult) in x_values.iter_mut().zip(mult_values.iter_mut()){
+            *x *= r_iter;
+            *mult *= r_iter;
+            r_iter *= coin_value;
+        }
 
-        // Sample a coin first here
-        self.toss_common_coin(self.delinearization_depth).await;
-    }
+        // Compress shares with dimension reduction factor k
+        let summed_mult_value: LargeField = mult_values.into_iter().sum();
 
-    pub async fn handle_coin_toss_deserialization(&mut self){
-        
+        self.start_compression_level(x_values, y_values, summed_mult_value, self.delinearization_depth +2).await;
     }
 }
