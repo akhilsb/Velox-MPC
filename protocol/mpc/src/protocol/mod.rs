@@ -8,15 +8,7 @@ mod weak_mult;
 mod mult_state;
 pub use mult_state::MultState;
 
-mod verf_state;
-pub use verf_state::VerificationState;
-
 mod online_phase;
 
-mod compress_tup;
-
-mod ex_compr_state;
-
-mod common_coin;
-
-mod delinearize;
+mod tuple_verification;
+pub use tuple_verification::VerificationState;

@@ -1,7 +1,7 @@
 use lambdaworks_math::{polynomial::Polynomial, traits::ByteConversion};
 use protocol::{LargeFieldSer, LargeField};
 
-use crate::{Context, msg::ProtMsg, protocol::ex_compr_state::ExComprState};
+use crate::{Context, msg::ProtMsg, protocol::tuple_verification::ex_compr_state::ExComprState};
 
 impl Context{
     pub async fn toss_common_coin(&mut self, depth: usize){
