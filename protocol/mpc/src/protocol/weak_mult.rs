@@ -1,13 +1,15 @@
 use std::{collections::HashMap, ops::Add};
 
 use bincode::Result;
-use crypto::{encrypt, decrypt};
+use crypto::{encrypt, decrypt, hash::{do_hash, Hash}};
 use lambdaworks_math::{polynomial::Polynomial, traits::ByteConversion};
 use protocol::{LargeField, LargeFieldSer, FieldType};
 use rayon::prelude::{IntoParallelRefIterator, IndexedParallelIterator, ParallelIterator, IntoParallelIterator};
 use types::{WrapperMsg, Replica};
 
 use crate::{Context, msg::ProtMsg};
+
+use super::mult_state::SingleDepthState;
 
 impl Context{
     pub async fn choose_multiplication_protocol(&mut self, a_shares: Vec<Vec<LargeField>>, b_shares: Vec<Vec<LargeField>>, depth: usize){
@@ -92,20 +94,14 @@ impl Context{
                 }).collect();
             
             depth_state.l1_shares_reconstructed.extend(reconstructed_secrets.clone());
-            // Now, subtract random sharings from the reconstructed secrets
-            let next_depth_sharings: Vec<LargeField> = 
-                reconstructed_secrets.into_iter()
-                    .zip(depth_state.util_rand_sharings.iter())
-                    .map(|(recon,sharing)| 
-                        recon-sharing.clone())
-                        .collect();
-            
-            self.verf_state.add_mult_output_shares(depth, next_depth_sharings.clone());
-            // Do something with these sharings here
-            if depth > self.max_depth{
-                // These sharings belong to verification state
-                
+            // Broadcast hash of this reconstructed value. 
+            let mut appended_msg = Vec::new();
+            for secret in reconstructed_secrets.iter(){
+                appended_msg.extend(secret.to_bytes_be());
             }
+            let hash = do_hash(&appended_msg);
+            log::info!("Completed processing triples at depth {} with quadratic sharings, broadcasting hash {:?}", depth, hash);
+            self.broadcast(ProtMsg::HashZMsg(hash,depth,false)).await;
         }
     }
 
@@ -328,22 +324,7 @@ impl Context{
         if ser_shares.is_some(){
             self.broadcast(ProtMsg::SharesL2(ser_shares.unwrap(), depth)).await;
         }
-        // self.received_fx_shares.entry(group).or_insert_with(Vec::new).push((LargeField::from(evaluation_point as u64), share));
 
-        // if self.reconstruction_result.contains_key(&group) {
-        //     // reconstruction was already sent to other parties for this group --> skip
-        // } else {
-        //     if share.is_none() {
-        //         self.reconstruction_result.insert(group, None);
-        //         self.distribute_reconstruction_result(group).await;
-        //     } else if self.received_fx_shares.len() >= 2*self.num_faults+1 {
-        //         let points = self.received_fx_shares.get(&group).unwrap().iter().map(|x| (x.0, x.1.unwrap())).collect_vec();
-        //         let coefficients: Vec<LargeField> = interpolate_polynomial(points);
-        //         let evaluation_result = evaluate_polynomial_from_coefficients_at_position(coefficients, LargeField::zero());
-        //         self.reconstruction_result.insert(group, Some(evaluation_result));
-        //         self.distribute_reconstruction_result(group).await;
-        //     }
-        // }
     }
 
     pub async fn handle_l2_message(&mut self, group_shares: Vec<u8>, sender: Replica, depth: usize){
@@ -364,35 +345,78 @@ impl Context{
         // Interpolate polynomial
         if depth_state.recv_share_count_l2 == (self.num_nodes - self.num_faults) {
             // We have enough shares to reconstruct the polynomial
-            let secrets: Vec<LargeField> = depth_state.l2_shares.par_iter().map(|(indices,group_shares)|{
+            let reconstructed_secrets: Vec<LargeField> = depth_state.l2_shares.par_iter().map(|(indices,group_shares)|{
                 let poly = Polynomial::interpolate(indices, group_shares).unwrap();
                 //let secret = poly.evaluate(&LargeField::zero()); // Evaluate at zero to get the secret
                 return poly.coefficients;
             }).flatten().collect();
 
-            // Get the random sharings
-            log::info!("Reconstructed {} blinded secrets at depth {}",secrets.len(), depth);
-            // Subtract random sharings
-            log::info!("Subtracting random sharings with length {} from reconstructed secrets at depth {}",depth_state.util_rand_sharings.len(), depth);
-
-            if depth_state.util_rand_sharings.len() <= secrets.len(){
-                log::info!("Moving on to depth {}", depth + 1);
-                // Par iter from rayon not needed here because we are not doing heavy computation
-                let shares_next_depth: Vec<LargeField> 
-                        = depth_state.util_rand_sharings.clone().into_iter()
-                            .zip(secrets.into_iter())
-                                .map(|(sharing, recon_secret)|recon_secret-sharing)
-                                    .collect();
-                
-                self.verf_state.add_mult_output_shares(depth, shares_next_depth.clone()); // Store the shares for the next depth
+            depth_state.l2_shares_reconstructed.extend(reconstructed_secrets.clone());
+            
+            let mut appended_msg = Vec::new();
+            for secret in reconstructed_secrets.iter(){
+                appended_msg.extend(secret.to_bytes_be());
             }
-            else{
-                log::error!("Secrets less than number of random sharings used, this should not happen. Abandoning the protocol at depth {}",depth);
-                return;
+            let hash = do_hash(&appended_msg);
+            log::info!("Completed processing triples at depth {} with linear sharings, broadcasting hash {:?}", depth, hash);
+            self.broadcast(ProtMsg::HashZMsg(hash,depth,false)).await;
+        }
+    }
+
+    pub async fn handle_hash_broadcast(&mut self, hash: Hash, depth: usize, lin_or_quad: bool, sender: Replica){
+        if !self.mult_state.depth_share_map.contains_key(&depth){
+            let single_depth_state = SingleDepthState::new(lin_or_quad);
+            self.mult_state.depth_share_map.insert(depth, single_depth_state);
+        }
+        
+        let ex_mult_state = self.mult_state.depth_share_map.get_mut(&depth).unwrap();
+        ex_mult_state.recv_hash_set.insert(hash.clone());
+        ex_mult_state.recv_hash_msgs.push(sender);
+
+        if ex_mult_state.recv_hash_set.len() == self.num_nodes-self.num_faults{
+            if ex_mult_state.recv_hash_set.len() == 1{
+                log::info!("Received 2t+1 Hashes for multiplication at depth {} with Hash {:?}, computing sharings of output gate",depth, hash);
             }
         }
     }
 
+    pub async fn verify_depth_mult_termination(&mut self, depth: usize){
+        // Now, subtract random sharings from the reconstructed secrets
+        if !self.mult_state.depth_share_map.contains_key(&depth){
+            return;
+        }
+        let mult_state = self.mult_state.depth_share_map.get(&depth).unwrap();
+        let reconstructed_blinded_secrets;
+        if mult_state.two_levels{
+            reconstructed_blinded_secrets = mult_state.l2_shares_reconstructed.clone();
+        }
+        else{
+            // Quadratic multiplication layer
+            reconstructed_blinded_secrets = mult_state.l1_shares_reconstructed.clone();
+        }
+        
+        // Get the random sharings
+        // Subtract random sharings
+        log::info!("Subtracting random sharings with length {} from reconstructed secrets {} at depth {}",mult_state.util_rand_sharings.len(), reconstructed_blinded_secrets.len(), depth);
+
+        if mult_state.util_rand_sharings.len() <= reconstructed_blinded_secrets.len() && reconstructed_blinded_secrets.len() > 0{
+            log::info!("Moving on to depth {}", depth + 1);
+            // Par iter from rayon not needed here because we are not doing heavy computation
+            let shares_next_depth: Vec<LargeField> 
+                    = mult_state.util_rand_sharings.clone().into_iter()
+                        .zip(reconstructed_blinded_secrets.into_iter())
+                            .map(|(sharing, recon_secret)|recon_secret-sharing)
+                                .collect();
+            
+            self.verf_state.add_mult_output_shares(depth, shares_next_depth.clone()); // Store the shares for the next depth
+            // self.choose_multiplication_protocol(a_shares, b_shares, depth)
+            // How to handle next depth wires? 
+        }
+        else{
+            log::error!("Secrets less than number of random sharings used, this should not happen. Abandoning the protocol at depth {}",depth);
+            return;
+        }
+    }
     // pub async fn distribute_reconstruction_result(self: &mut Context, group: usize) {
     //     for p in 1..=self.num_nodes {
     //         let content = GroupValueOption {

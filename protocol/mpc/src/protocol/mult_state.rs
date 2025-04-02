@@ -1,6 +1,8 @@
-use std::{collections::HashMap};
+use std::{collections::{HashMap, HashSet}};
 
+use crypto::hash::Hash;
 use protocol::LargeField;
+use types::Replica;
 
 pub struct MultState{
     pub depth_share_map: HashMap<usize, SingleDepthState>
@@ -19,6 +21,9 @@ pub struct SingleDepthState{
     // TODO: replace these with mutexes
     pub recv_share_count_l1: usize,
     pub recv_share_count_l2: usize,
+
+    pub recv_hash_set: HashSet<Hash>,
+    pub recv_hash_msgs: Vec<Replica>
 }
 
 impl SingleDepthState{
@@ -35,6 +40,9 @@ impl SingleDepthState{
             two_levels,
             recv_share_count_l1: 0,
             recv_share_count_l2: 0,
+
+            recv_hash_set: HashSet::new(),
+            recv_hash_msgs: Vec::new()
         }
     }
 }

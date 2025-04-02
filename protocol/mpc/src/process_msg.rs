@@ -46,6 +46,11 @@ impl Context {
                     log::debug!("Received Init for instance id {} from node : {}", depth, wrapper_msg.sender);
                     self.handle_quadratic_mult_shares(depth,main_msg, wrapper_msg.sender).await;
                 },
+                ProtMsg::HashZMsg(hash_val, depth, lin_or_quad) => {
+                    // RBC initialized
+                    log::debug!("Received HashZMsg for depth {} from node : {}", depth, wrapper_msg.sender);
+                    self.handle_hash_broadcast(hash_val, depth, lin_or_quad, wrapper_msg.sender).await;
+                },
                 ProtMsg::ReconstructCoin(ser_share, depth) => {
                     log::debug!("Received ReconstructCoin message");
                     self.handle_common_coin_msg(ser_share, wrapper_msg.sender, depth).await;

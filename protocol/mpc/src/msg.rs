@@ -1,3 +1,4 @@
+use crypto::hash::Hash;
 use protocol::LargeFieldSer;
 use serde::{Serialize, Deserialize};
 
@@ -8,6 +9,8 @@ pub enum ProtMsg{
     SharesL2(Vec<u8>, usize),
 
     QuadShares(Vec<u8>, usize),
-    // Serialized share, depth of the circuit where the coin is being called
+    // Hash Message to ensure at least t+1 parties are consistent with the hash value
+    // Bool is for indicating linear or quadratic layer
+    HashZMsg(Hash, usize, bool),
     ReconstructCoin(LargeFieldSer, usize)
 }
