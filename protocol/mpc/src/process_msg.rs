@@ -54,7 +54,11 @@ impl Context {
                 ProtMsg::ReconstructCoin(ser_share, depth) => {
                     log::debug!("Received ReconstructCoin message");
                     self.handle_common_coin_msg(ser_share, wrapper_msg.sender, depth).await;
-                }
+                },
+                ProtMsg::ReconstructVerfOutputSharing(ser_x_share, ser_y_share, ser_z_share)=>{
+                    log::debug!("Received ReconstructVerfOutputSharing message");
+                    self.handle_reconstruct_verf_output_sharing(ser_x_share, ser_y_share, ser_z_share, wrapper_msg.sender).await;
+                },
             }
         } else {
             log::warn!(

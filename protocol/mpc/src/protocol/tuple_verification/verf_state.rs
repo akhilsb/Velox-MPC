@@ -9,7 +9,9 @@ pub struct VerificationState{
     pub mult_tuples: HashMap<usize, (Vec<LargeField>, Vec<LargeField>, Vec<LargeField>)>,
     pub ex_compr_state: HashMap<usize, ExComprState>,
     // Prepare a beaver triple as a random mask for verification
-    pub random_mask: (Option<LargeField>,Option<LargeField>,Option<LargeField>)
+    pub random_mask: (Option<LargeField>,Option<LargeField>,Option<LargeField>),
+    // indices, x_shares, y_shares, z_shares
+    pub output_verf_reconstruction_shares: (Vec<LargeField>, Vec<LargeField>, Vec<LargeField>, Vec<LargeField>)
 }
 
 impl VerificationState{
@@ -17,7 +19,8 @@ impl VerificationState{
         VerificationState{
             mult_tuples: HashMap::new(),
             ex_compr_state: HashMap::new(),
-            random_mask: (None, None, None)
+            random_mask: (None, None, None),
+            output_verf_reconstruction_shares: (Vec::new(), Vec::new(), Vec::new(), Vec::new())
         }
     }
 

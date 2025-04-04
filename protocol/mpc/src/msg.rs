@@ -12,5 +12,7 @@ pub enum ProtMsg{
     // Hash Message to ensure at least t+1 parties are consistent with the hash value
     // Bool is for indicating linear or quadratic layer
     HashZMsg(Hash, usize, bool),
-    ReconstructCoin(LargeFieldSer, usize)
+    ReconstructCoin(LargeFieldSer, usize),
+
+    ReconstructVerfOutputSharing(LargeFieldSer, LargeFieldSer, LargeFieldSer)
 }

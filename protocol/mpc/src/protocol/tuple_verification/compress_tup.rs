@@ -1,5 +1,7 @@
-use lambdaworks_math::{polynomial::Polynomial};
-use protocol::{LargeField};
+use std::ops::Mul;
+
+use lambdaworks_math::{polynomial::Polynomial, traits::ByteConversion};
+use protocol::{LargeField, LargeFieldSer};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator, IntoParallelRefIterator};
 
 use crate::{Context};
@@ -10,9 +12,16 @@ impl Context{
     // This method starts compression from the second level onwards
     pub async fn start_compression_level(&mut self, x_vector: Vec<LargeField>, y_vector: Vec<LargeField>, agg_val: LargeField, depth: usize){
         // Split into chunks for compression
-        let num_chunks = self.compression_factor;
-        let mut x_vec_chunks: Vec<Vec<LargeField>> = x_vector.chunks(num_chunks).into_iter().map(|chunk| chunk.to_vec()).collect();
-        let mut y_vec_chunks: Vec<Vec<LargeField>> = y_vector.chunks(num_chunks).into_iter().map(|chunk| chunk.to_vec()).collect();
+        let elements_per_chunk;
+        if x_vector.len() <= self.compression_factor{
+            // After reaching a threshold level, 
+            elements_per_chunk = x_vector.len()/self.compression_factor;
+        }
+        else{
+            elements_per_chunk = 1;
+        }
+        let mut x_vec_chunks: Vec<Vec<LargeField>> = x_vector.chunks(elements_per_chunk).into_iter().map(|chunk| chunk.to_vec()).collect();
+        let mut y_vec_chunks: Vec<Vec<LargeField>> = y_vector.chunks(elements_per_chunk).into_iter().map(|chunk| chunk.to_vec()).collect();
         let mult_value = agg_val;
 
         if !self.verf_state.ex_compr_state.contains_key(&depth){
@@ -29,7 +38,8 @@ impl Context{
         // Save the multiplication results in the structure
         ex_compr_state.x_sharings.extend(x_vec_chunks.clone());
         ex_compr_state.y_sharings.extend(y_vec_chunks.clone());
-
+        
+        log::info!("Starting tuple compression at depth {} with tuple depth {} and num tuples {}", depth,x_vec_chunks[0].len(), x_vec_chunks.len());
         // Multiply these tuples using ex_mult
         self.choose_multiplication_protocol(x_vec_chunks, y_vec_chunks, depth).await;
     }
@@ -44,9 +54,20 @@ impl Context{
         }
         let ex_compr_state = self.verf_state.ex_compr_state.get_mut(&depth).expect("ExComprState should exist for the given depth");
         
-        let x_vectors = ex_compr_state.x_sharings.clone(); // This should be a vector of vectors of shares for x
-        let y_vectors = ex_compr_state.y_sharings.clone(); // This should be a vector of vectors of shares for y
-        let mult_vec = ex_compr_state.mult_sharings.clone(); // This should be a vector of shares for the multiplication results
+        let mut x_vectors = ex_compr_state.x_sharings.clone(); // This should be a vector of vectors of shares for x
+        let mut y_vectors = ex_compr_state.y_sharings.clone(); // This should be a vector of vectors of shares for y
+        let mut mult_vec = ex_compr_state.mult_sharings.clone(); // This should be a vector of shares for the multiplication results
+
+        // If this round is the last round, mask the output with a random sharing to ensure adversary does not know any thing about the inputs or gates
+        if x_vectors[0].len() == 1{
+            log::info!("Ex_compr: Last round of compression, adding a random mask to the tuples list");
+            let random_mask_a = self.verf_state.random_mask.0.unwrap();
+            let random_mask_b = self.verf_state.random_mask.1.unwrap();
+            let random_mask_c = self.verf_state.random_mask.2.unwrap();
+            x_vectors.push(vec![random_mask_a]);
+            y_vectors.push(vec![random_mask_b]);
+            mult_vec.push(random_mask_c);
+        }
 
         if x_vectors.len() != y_vectors.len() || x_vectors.len() != mult_vec.len() {
             log::error!("Ex_compr: X, Y, and Z vectors must be of the same length, returning multiplication");
@@ -56,7 +77,7 @@ impl Context{
         if !ex_compr_state.extended_mult_sharings.is_empty() && !ex_compr_state.extended_x_sharings.is_empty(){
             // Directly go to the extended protocol now. 
             // TODO: something here
-            self.handle_level_termination(depth).await;
+            self.handle_level_mult_termination(depth).await;
             return;
         }
 
@@ -103,10 +124,10 @@ impl Context{
         ex_compr_state.extended_y_sharings.extend(y_poly_evals_ss.clone()); // Store the evaluations in the state for future reference
         // Send these tuples to multiplication
         // Remember, asynchrony can cause extended_mult_sharings to be filled first as well. 
-        let mult_sharings_filled = ex_compr_state.mult_sharings.len() > 0;
+        let mult_sharings_filled = ex_compr_state.extended_mult_sharings.len() > 0;
         if mult_sharings_filled{
             //self.handle_ex_mult_termination(depth+1, ).await;
-            self.handle_level_termination(depth).await;
+            self.handle_level_mult_termination(depth).await;
         }
         else{
             self.choose_multiplication_protocol(x_poly_evals_ss, y_poly_evals_ss, depth+1).await;
@@ -134,12 +155,12 @@ impl Context{
                 let depth_state_ex_compr = depth - 1;
                 let ex_compr_state = self.verf_state.ex_compr_state.entry(depth_state_ex_compr).or_insert_with(|| ExComprState::new(depth));
                 ex_compr_state.extended_mult_sharings.extend(mult_result.clone()); // Store the multiplication results for the next round of compression
-                self.handle_level_termination(depth_state_ex_compr).await;
+                self.handle_level_mult_termination(depth_state_ex_compr).await;
             }
         }
     }
 
-    pub async fn handle_level_termination(&mut self, depth: usize){
+    pub async fn handle_level_mult_termination(&mut self, depth: usize){
         if !self.verf_state.ex_compr_state.contains_key(&depth) {
             // This means we haven't even started the ex_compression at this depth, return early
             return;
@@ -176,9 +197,10 @@ impl Context{
 
         // Toss coin here
         self.toss_common_coin(depth).await;
+        self.check_level_termination(depth).await;
     }
 
-    pub async fn handle_coin_termination(&mut self, depth: usize) {
+    pub async fn check_level_termination(&mut self, depth: usize) {
         let ex_compr_state = self.verf_state.ex_compr_state.get_mut(&depth).unwrap();
         if ex_compr_state.h_poly.is_none() || ex_compr_state.x_polys.is_none() || ex_compr_state.y_polys.is_none() || ex_compr_state.coin_output.is_none() {
             log::warn!("handle_coin_termination: h_poly is None at depth {}. Cannot proceed with coin termination.", depth);
@@ -192,7 +214,13 @@ impl Context{
         let h_point = h_polynomial.evaluate(&coin_eval_point);
         let x_points: Vec<LargeField> = x_poly_vec.par_iter().map(|poly| poly.evaluate(&coin_eval_point)).collect();
         let y_points: Vec<LargeField> = y_poly_vec.par_iter().map(|poly| poly.evaluate(&coin_eval_point)).collect();
+        if x_points.len() == 1{
+            // Last level of compression, reconstruct sharings here
+            log::info!("Last level of compression at depth {} with size of vectors {}, proceeding to reconstruct sharings",depth,x_points.len());
 
+        }
+        
+        log::info!("Terminated compression at depth {} with size of vectors {}, proceeding to next depth",depth,x_points.len());
         self.start_compression_level(x_points, y_points, h_point, depth+2).await;
     }
 
@@ -205,5 +233,85 @@ impl Context{
             second_set.push(LargeField::from((i+poly_def_points_count) as u64));    
         }
         (first_set, second_set)
+    }
+
+    pub async fn handle_reconstruct_verf_output_sharing(
+        &mut self, 
+        x_share: LargeFieldSer, 
+        y_share: LargeFieldSer, 
+        z_share: LargeFieldSer, 
+        sender: usize){
+        log::info!("handle_reconstruct_verf_output_sharing: Received shares from sender {}", sender);
+        self.verf_state.output_verf_reconstruction_shares.0.push(Self::get_share_evaluation_point(sender, self.use_fft, self.roots_of_unity.clone()));
+        self.verf_state.output_verf_reconstruction_shares.1.push(LargeField::from_bytes_be(&x_share).unwrap());
+        self.verf_state.output_verf_reconstruction_shares.2.push(LargeField::from_bytes_be(&y_share).unwrap());
+        self.verf_state.output_verf_reconstruction_shares.3.push(LargeField::from_bytes_be(&z_share).unwrap());
+        
+        if self.verf_state.output_verf_reconstruction_shares.0.len() == 2*self.num_faults + 1{
+            // Reconstruct points and check if all 2t+1 points lie on the degree t polynomial
+            let evaluation_indices = self.verf_state.output_verf_reconstruction_shares.0.clone();
+            let vec_eval_points = vec![
+                self.verf_state.output_verf_reconstruction_shares.0.clone(),
+                self.verf_state.output_verf_reconstruction_shares.1.clone(),
+                self.verf_state.output_verf_reconstruction_shares.2.clone()];
+            
+            let verify_polynomials = Self::check_if_all_points_lie_on_degree_x_polynomial(evaluation_indices, vec_eval_points, self.num_faults+1);
+            if !verify_polynomials.0{
+                log::error!("handle_reconstruct_verf_output_sharing: Verification failed. Points do not lie on the polynomial.");
+                return;
+            }
+            log::info!("handle_reconstruct_verf_output_sharing: Verification passed. Points on all three polynomials lie on degree-t polynomials.");
+            log::info!("Checking if the multiplication constraint holds");
+
+            let verf_polys = verify_polynomials.1.unwrap();
+            let a_poly = &verf_polys[0];
+            let b_poly = &verf_polys[1];
+            let c_poly = &verf_polys[2];
+
+            let eval_point = LargeField::zero();
+
+            let a_sec = a_poly.evaluate(&eval_point);
+            let b_sec = b_poly.evaluate(&eval_point);
+            let c_sec = c_poly.evaluate(&eval_point);
+
+            if (a_sec.mul(b_sec)) == c_sec{
+                log::info!("handle_reconstruct_verf_output_sharing: Multiplication constraint holds.");
+                // Output from here
+            }
+            else{
+                log::error!("handle_reconstruct_verf_output_sharing: Multiplication constraint does not hold, with {} {} {}", a_sec, b_sec, c_sec);
+            }
+        }
+
+    }
+
+    pub fn check_if_all_points_lie_on_degree_x_polynomial(eval_points: Vec<LargeField>, polys_vector: Vec<Vec<LargeField>>, degree: usize) -> (bool,Option<Vec<Polynomial<LargeField>>>){
+        let polys = polys_vector.into_par_iter().map(|points| {
+            let eval_points = eval_points.clone();            
+            let polynomial = Polynomial::interpolate(&eval_points[0..degree], &points[0..degree]).unwrap();
+            let all_points_match =  eval_points[degree..].iter().zip(points[degree..].iter()).map(|(share, eval_point)|{
+                return polynomial.evaluate(eval_point) == *share;
+            }).fold(true, |acc,x| acc && x);
+            if all_points_match{
+                Some(polynomial)
+            }
+            else{
+                None
+            }
+        }).fold(|| Vec::new(), |mut acc_vec, vec: Option<Polynomial<LargeField>>|{
+            acc_vec.push(vec);
+            acc_vec
+        }).reduce(|| Vec::new(), |mut acc_vec, vec: Vec<Option<Polynomial<LargeField>>>|{
+            acc_vec.extend(vec);
+            acc_vec
+        });
+        let all_polys_positive = polys.par_iter().all(|poly| poly.is_some());
+        if all_polys_positive{
+            let polys_vec = polys.into_iter().map(|x| x.unwrap()).collect();
+            (true, Some(polys_vec))
+        }
+        else{
+            (false, None)
+        }
     }
 }
