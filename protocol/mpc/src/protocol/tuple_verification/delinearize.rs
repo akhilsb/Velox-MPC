@@ -8,6 +8,18 @@ impl Context{
     pub async fn delinearize_mult_tuples(&mut self){
         // Here we will implement the logic for compressing the multiplication tuples
         // This might involve some form of serialization or aggregation of the shares
+        // Initiate the random mask generation for the last level
+        log::info!("Initiating verification process: Preparing a beaver triple as a random mask and tossing a common coin");
+        let random_a_share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
+        let random_b_share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
+
+        let vec_a_share = vec![vec![random_a_share]];
+        let vec_b_share = vec![vec![random_b_share]];
+
+        self.verf_state.random_mask.0 = Some(random_a_share);
+        self.verf_state.random_mask.1 = Some(random_b_share);
+        
+        self.choose_multiplication_protocol(vec_a_share, vec_b_share, self.delinearization_depth).await;
         self.toss_common_coin(self.delinearization_depth).await;
     }
 

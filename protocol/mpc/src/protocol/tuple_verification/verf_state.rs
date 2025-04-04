@@ -8,6 +8,8 @@ pub struct VerificationState{
     // A vector of multiplication tuples (a,b,a*b) to be verified at each depth
     pub mult_tuples: HashMap<usize, (Vec<LargeField>, Vec<LargeField>, Vec<LargeField>)>,
     pub ex_compr_state: HashMap<usize, ExComprState>,
+    // Prepare a beaver triple as a random mask for verification
+    pub random_mask: (Option<LargeField>,Option<LargeField>,Option<LargeField>)
 }
 
 impl VerificationState{
@@ -15,6 +17,7 @@ impl VerificationState{
         VerificationState{
             mult_tuples: HashMap::new(),
             ex_compr_state: HashMap::new(),
+            random_mask: (None, None, None)
         }
     }
 

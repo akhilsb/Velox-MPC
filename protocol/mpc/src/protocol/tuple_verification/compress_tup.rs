@@ -41,7 +41,6 @@ impl Context{
         // create polynomials on x and y
         if !self.verf_state.ex_compr_state.contains_key(&depth){
             return;
-            //self.verf_state.add_compression_level_state(depth, x_vectors.clone(), y_vectors.clone(), mult_vec.clone());
         }
         let ex_compr_state = self.verf_state.ex_compr_state.get_mut(&depth).expect("ExComprState should exist for the given depth");
         
@@ -107,6 +106,7 @@ impl Context{
         let mult_sharings_filled = ex_compr_state.mult_sharings.len() > 0;
         if mult_sharings_filled{
             //self.handle_ex_mult_termination(depth+1, ).await;
+            self.handle_level_termination(depth).await;
         }
         else{
             self.choose_multiplication_protocol(x_poly_evals_ss, y_poly_evals_ss, depth+1).await;
@@ -114,18 +114,28 @@ impl Context{
     }
 
     pub async fn handle_ex_mult_termination(&mut self, depth: usize, mult_result: Vec<LargeField>){
-        if depth % 2 == 0{
-            // This is the first level of ex_mult termination, initiate second level of ex_mult at this depth here
-            let ex_compr_state = self.verf_state.ex_compr_state.entry(depth).or_insert_with(|| ExComprState::new(depth));
-            ex_compr_state.mult_sharings.extend(mult_result.clone());
-            self.ex_compression_tuples(depth).await;
+        if depth == self.delinearization_depth{
+            if mult_result.len() == 0{
+                log::error!("Ex_compr: Mult result is empty for depth {}, returning",depth);
+                return; // Handle error: multiplication result is empty
+            }
+            let rand_mult_sharing = mult_result[0].clone();
+            self.verf_state.random_mask.2 = Some(rand_mult_sharing);
         }
         else{
-            // This is the second level of ex_mult termination, initiate further compression here
-            let depth_state_ex_compr = depth - 1;
-            let ex_compr_state = self.verf_state.ex_compr_state.entry(depth_state_ex_compr).or_insert_with(|| ExComprState::new(depth));
-            ex_compr_state.extended_mult_sharings.extend(mult_result.clone()); // Store the multiplication results for the next round of compression
-            self.handle_level_termination(depth_state_ex_compr).await;
+            if depth % 2 == 0{
+                // This is the first level of ex_mult termination, initiate second level of ex_mult at this depth here
+                let ex_compr_state = self.verf_state.ex_compr_state.entry(depth).or_insert_with(|| ExComprState::new(depth));
+                ex_compr_state.mult_sharings.extend(mult_result.clone());
+                self.ex_compression_tuples(depth).await;
+            }
+            else{
+                // This is the second level of ex_mult termination, initiate further compression here
+                let depth_state_ex_compr = depth - 1;
+                let ex_compr_state = self.verf_state.ex_compr_state.entry(depth_state_ex_compr).or_insert_with(|| ExComprState::new(depth));
+                ex_compr_state.extended_mult_sharings.extend(mult_result.clone()); // Store the multiplication results for the next round of compression
+                self.handle_level_termination(depth_state_ex_compr).await;
+            }
         }
     }
 

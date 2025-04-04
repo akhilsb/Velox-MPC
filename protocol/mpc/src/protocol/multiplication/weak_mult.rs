@@ -61,7 +61,13 @@ impl Context{
             
             self.verf_state.add_mult_output_shares(depth, shares_next_depth.clone()); // Store the shares for the next depth
             // self.choose_multiplication_protocol(a_shares, b_shares, depth)
-            // How to handle next depth wires? 
+            // How to handle next depth wires?
+            if depth > self.max_depth{
+                self.handle_ex_mult_termination(depth, shares_next_depth).await;
+            }
+            else{
+                // TODO: Initiate next depth multiplication here. 
+            } 
         }
         else{
             log::error!("Secrets less than number of random sharings used, this should not happen. Abandoning the protocol at depth {}",depth);
