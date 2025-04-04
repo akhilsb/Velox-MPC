@@ -152,16 +152,6 @@ impl Context{
         let r_shares_grouped = Self::group_elements_by_count(r_sharings.clone(), tot_shares / (2 * self.num_faults + 1));
         let o_shares_grouped = Self::group_elements_by_count(o_sharings.clone(), tot_shares / (2 * self.num_faults + 1));
         // Check that there are the correct number of groups
-        // assert_eq!(a_vec_shares_grouped.len(), tot_shares / (2 * self.num_faults + 1));
-        // assert_eq!(b_vec_shares_grouped.len(), tot_shares / (2 * self.num_faults + 1));
-        // assert_eq!(r_shares_grouped.len(), tot_shares / (2 * self.num_faults + 1));
-        // assert_eq!(o_shares_grouped.len(), tot_shares / (2 * self.num_faults + 1));
-        // Check each group has correct number of elements
-        // Why self.num_faults? Is it not supposed to be 2*num_faults+1?
-        //assert!(a_vec_shares_grouped.iter().all(|x| x.len() == self.num_faults));
-        //assert!(b_vec_shares_grouped.iter().all(|x| x.len() == self.num_faults));
-        //assert!(r_shares_grouped.iter().all(|x| x.len() == self.num_faults));
-        //assert!(o_shares_grouped.iter().all(|x| x.len() == (self.num_faults * tot_shares) / (2*self.num_faults + 1)));
 
         let vandermonde_points: Vec<LargeField> = (2..self.num_nodes+1).into_iter().map(|x| LargeField::from(x as u64)).collect();
         let vdm_matrix = Self::vandermonde_matrix(vandermonde_points, self.num_faults); // TODO: can initialize the vdm_matrix somewhere outside to not compute it each time this gets called
@@ -417,87 +407,6 @@ impl Context{
             return;
         }
     }
-    // pub async fn distribute_reconstruction_result(self: &mut Context, group: usize) {
-    //     for p in 1..=self.num_nodes {
-    //         let content = GroupValueOption {
-    //             group: group,
-    //             value: self.reconstruction_result[&group]
-    //         };
-    //         let msg = Msg {
-    //             content: serialize_group_value_option(content),
-    //             origin: self.myid
-    //         };
-    //         let m =  ProtMsg::GroupReconstructionMessage(msg.clone(), self.myid);
-    //         let sec_key_for_replica = self.sec_key_map[&(p)].clone();
-    //         let wrapper_msg = WrapperMsg::new(
-    //             m.clone(),
-    //             self.myid,
-    //             &sec_key_for_replica.as_slice()
-    //         );
-    //         self.send(p, wrapper_msg).await;
-    //     }
-    // }
-
-    // pub async fn handle_reconstruction_result_message(self: &mut Context, msg: Msg) {
-    //     let content = msg.content;
-    //     let deserialized_content = deserialize_group_value_option(&content);
-    //     let sender: usize = msg.origin as usize;
-    //     let group: usize = deserialized_content.group;
-    //     let value: Option<LargeField<Stark252PrimeField>> = deserialized_content.value;
-
-    //     self.received_reconstruction_shares.entry(group).or_insert_with(HashMap::new).insert(LargeField::from(sender as u64), value);
-    //     if self.received_reconstruction_shares[&group].len() >= 2*self.num_faults + 1 && !self.Z.contains_key(&group) {
-    //         let shares =  self.received_reconstruction_shares.get(&group).unwrap().iter().map(|x| (x.0.clone(), x.1.clone().unwrap())).collect_vec();
-    //         let mut coefficients: Vec<LargeField<Stark252PrimeField>> = vec![LargeField::zero(); 2*self.num_faults + 1];
-    //         let coeff_tmp = interpolate_polynomial(shares);
-    //         for (index, value) in coeff_tmp.iter().enumerate() {
-    //             coefficients[index] = *value;
-    //         }
-
-    //         self.coefficients_z.insert(group, coefficients);
-    //         let hash: Vec<u8> = hash_vec_u8(self.coefficients_z[&group].clone());
-    //         self.Z.insert(group.clone(), hash);
-
-    //         // Broadcast Z[group]
-    //         let content = GroupHashValueOption {
-    //             group: group,
-    //             value: Some(self.Z[&group].clone())
-    //         };
-    //         let serialized_content = serialize_group_hash_value_option(content);
-    //         let msg = Msg {
-    //             content: serialized_content,
-    //             origin: self.myid
-    //         };
-    //         let distribute_sharing_of_share_msg =  ProtMsg::HashBroadcastMessage(msg, self.myid);
-    //         self.broadcast_all(distribute_sharing_of_share_msg).await; // TODO: May need to invoke custom RBC here and adapt invocation of handle_Z_hash_broadcast_message. How to handle this?
-
-    //     }
-    // }
-
-    // pub async fn handle_Z_hash_broadcast_message(self: &mut Context, msg: Msg) {
-    //     let content = msg.content;
-    //     let deserialized_content = deserialize_group_hash_value_option(&*content);
-    //     let group: usize = deserialized_content.group;
-    //     let value: Option<Vec<u8>> = deserialized_content.value;
-
-    //     self.received_Z.entry(group).or_insert_with(Vec::new).push(value);
-
-    //     if self.received_Z[&group].iter().any(|x| x.is_none()) || !self.received_Z[&group].windows(2).all(|w| w[0] == w[1]) {
-    //         self.result.insert(group, WeakShareMultiplicationResult::FAIL);
-    //     } else {
-    //         if self.received_Z[&group].len() >= 2*self.num_faults + 1 {
-    //             for k in 1..=2*self.num_faults + 1 {
-    //                 self.cs[group][k] = Some(self.zs[group][k].sub(self.r_shares_grouped[group][k].unwrap()));
-    //             }
-    //         }
-    //     }
-
-    //     // TODO: add self.cs to self.result
-    //     if self.result.len() == 2*self.num_faults+1 && self.result.iter().all(|x| matches!(x.1, WeakShareMultiplicationResult::FAIL) || matches!(x.1, WeakShareMultiplicationResult::SUCCESS(_, _))) {
-    //         // TODO: uncomment terminate call; signature needs to be fixed
-    //         // self.terminate(self.result.clone()).await;
-    //     }
-    // }
 
     pub(crate) fn group_elements_by_count<T: Clone + Send + Sync>(elements: Vec<T>, num_groups: usize) -> Vec<Vec<T>> {
         if elements.is_empty() || num_groups == 0 {
