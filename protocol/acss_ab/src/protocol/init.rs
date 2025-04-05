@@ -3,7 +3,7 @@ use std::{ops::{Mul, Add, Sub}};
 use crate::Context;
 use crypto::{hash::{do_hash, Hash}, aes_hash::MerkleTree};
 use lambdaworks_math::{unsigned_integer::element::UnsignedInteger, polynomial::Polynomial, traits::ByteConversion};
-use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, sample_polynomials_from_prf};
+use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, sample_polynomials_from_prf, check_if_all_points_lie_on_degree_x_polynomial};
 use rand::random;
 use types::Replica;
 
@@ -19,6 +19,7 @@ impl Context{
         let tot_sharings = secrets.len();
 
         let mut handles = Vec::new();
+        let mut _indices;
         let mut evaluations;
         let nonce_evaluations;
         let mut coefficients;
@@ -36,7 +37,7 @@ impl Context{
                 false, 
                 1u8
             );
-            let evaluation_prf_chunks: Vec<Vec<Vec<LargeField>>> = evaluations_prf.chunks(self.num_threads).map(|el| el.to_vec()).collect();
+            let evaluation_prf_chunks: Vec<Vec<Vec<LargeField>>> = evaluations_prf.chunks(evaluations_prf.len()/self.num_threads).map(|el| el.to_vec()).collect();
             for eval_prfs in evaluation_prf_chunks{
                 let handle = tokio::spawn(
                     generate_evaluation_points(
@@ -50,6 +51,10 @@ impl Context{
 
             evaluations = Vec::new();
             coefficients = Vec::new();
+            _indices = Vec::new();
+            for party in 0..self.num_nodes{
+                _indices.push(LargeField::new(UnsignedInteger::from((party+1) as u64)));
+            }
                     
             for handle in handles{
                 let (
@@ -120,7 +125,7 @@ impl Context{
                 let handle = tokio::spawn(
                     generate_evaluation_points_fft(
                         secrets,
-                        self.num_faults,
+                        self.num_faults-1,
                         self.num_nodes
                     )
                 );
@@ -128,6 +133,7 @@ impl Context{
             }
             evaluations = Vec::new();
             coefficients = Vec::new();
+            _indices = self.roots_of_unity.clone();
             for handle in handles{
                 let (
                     evaluations_batch, 
@@ -141,7 +147,7 @@ impl Context{
                 vec![LargeField::new(UnsignedInteger{
                     limbs: random()
                 })],
-                self.num_faults,
+                self.num_faults-1,
                 self.num_nodes,
             ).await;
             nonce_evaluations = nonce_evaluations_ret[0].clone();
@@ -149,7 +155,7 @@ impl Context{
             let (blinding_poly_evaluations_vec, blinding_poly_coefficients_vec) = generate_evaluation_points_fft(vec![LargeField::new(UnsignedInteger{
                     limbs: random()
                 })], 
-                self.num_faults, 
+                self.num_faults-1, 
                 self.num_nodes
             ).await;
             blinding_poly_evaluations = blinding_poly_evaluations_vec[0].clone();
@@ -159,12 +165,13 @@ impl Context{
                     limbs: random()
                 })]
                 , 
-                self.num_faults, 
+                self.num_faults-1, 
                 self.num_nodes
             ).await;
             nonce_blinding_poly_evaluations = nonce_blinding_evaluations_vec[0].clone();
         }
-
+        let poly_status = check_if_all_points_lie_on_degree_x_polynomial(_indices, evaluations.clone(), self.num_faults+1);
+        assert!(poly_status.0);
         // Transform the shares to element wise shares
         let mut party_wise_shares: Vec<Vec<LargeFieldSer>> = Vec::new();
         let mut party_appended_shares: Vec<Vec<u8>> = Vec::new();

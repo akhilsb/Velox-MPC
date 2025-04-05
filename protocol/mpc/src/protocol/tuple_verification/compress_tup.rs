@@ -8,6 +8,8 @@ use crate::{Context};
 
 use super::ex_compr_state::ExComprState;
 
+use protocol::poly::check_if_all_points_lie_on_degree_x_polynomial;
+
 impl Context{
     // This method starts compression from the second level onwards
     pub async fn start_compression_level(&mut self, x_vector: Vec<LargeField>, y_vector: Vec<LargeField>, agg_val: LargeField, depth: usize){
@@ -255,7 +257,7 @@ impl Context{
                 self.verf_state.output_verf_reconstruction_shares.1.clone(),
                 self.verf_state.output_verf_reconstruction_shares.2.clone()];
             
-            let verify_polynomials = Self::check_if_all_points_lie_on_degree_x_polynomial(evaluation_indices, vec_eval_points, self.num_faults+1);
+            let verify_polynomials = check_if_all_points_lie_on_degree_x_polynomial(evaluation_indices, vec_eval_points, self.num_faults+1);
             if !verify_polynomials.0{
                 log::error!("handle_reconstruct_verf_output_sharing: Verification failed. Points do not lie on the polynomial.");
                 return;
@@ -283,36 +285,6 @@ impl Context{
                 log::error!("handle_reconstruct_verf_output_sharing: Multiplication constraint does not hold, with {} {} {}", a_sec, b_sec, c_sec);
                 return;
             }
-        }
-    }
-
-    pub fn check_if_all_points_lie_on_degree_x_polynomial(eval_points: Vec<LargeField>, polys_vector: Vec<Vec<LargeField>>, degree: usize) -> (bool,Option<Vec<Polynomial<LargeField>>>){
-        let polys = polys_vector.into_par_iter().map(|points| {
-            let eval_points = eval_points.clone();            
-            let polynomial = Polynomial::interpolate(&eval_points[0..degree], &points[0..degree]).unwrap();
-            let all_points_match =  eval_points[degree..].iter().zip(points[degree..].iter()).map(|(share, eval_point)|{
-                return polynomial.evaluate(eval_point) == *share;
-            }).fold(true, |acc,x| acc && x);
-            if all_points_match{
-                Some(polynomial)
-            }
-            else{
-                None
-            }
-        }).fold(|| Vec::new(), |mut acc_vec, vec: Option<Polynomial<LargeField>>|{
-            acc_vec.push(vec);
-            acc_vec
-        }).reduce(|| Vec::new(), |mut acc_vec, vec: Vec<Option<Polynomial<LargeField>>>|{
-            acc_vec.extend(vec);
-            acc_vec
-        });
-        let all_polys_positive = polys.par_iter().all(|poly| poly.is_some());
-        if all_polys_positive{
-            let polys_vec = polys.into_iter().map(|x| x.unwrap()).collect();
-            (true, Some(polys_vec))
-        }
-        else{
-            (false, None)
         }
     }
 }

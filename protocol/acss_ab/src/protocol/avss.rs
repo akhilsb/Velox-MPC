@@ -27,7 +27,7 @@ impl Context{
             return;
         }
         
-        let (commitments, blinding_commitments, _dzk_poly) = self.avss_state.commitments.get(&origin).unwrap().clone();
+        let (commitments, blinding_commitments, _dzk_poly) = avss_state.commitments.get(&origin).unwrap().clone();
 
         let shares = share.0;
         let nonce = share.1;

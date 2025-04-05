@@ -119,3 +119,35 @@ pub fn interpolate_shares( mut secret_key: Vec<u8>, num_shares: usize, is_nonce:
     let prf_values = pseudorandom_lf(&secret_key, num_shares);
     prf_values
 }
+
+pub fn check_if_all_points_lie_on_degree_x_polynomial(eval_points: Vec<LargeField>, polys_vector: Vec<Vec<LargeField>>, degree: usize) -> (bool,Option<Vec<Polynomial<LargeField>>>){
+    //log::info!("Checking evaluations on points :{:?}, eval_points: {:?}", eval_points, polys_vector);
+    let polys = polys_vector.into_par_iter().map(|points| {
+        let eval_points = eval_points.clone();            
+        let polynomial = Polynomial::interpolate(&eval_points[0..degree], &points[0..degree]).unwrap();
+        let all_points_match =  eval_points[degree..].iter().zip(points[degree..].iter()).map(|(eval_point, share)|{
+            return polynomial.evaluate(eval_point) == *share;
+        }).fold(true, |acc,x| acc && x);
+
+        if all_points_match{
+            Some(polynomial)
+        }
+        else{
+            None
+        }
+    }).fold(|| Vec::new(), |mut acc_vec, vec: Option<Polynomial<LargeField>>|{
+        acc_vec.push(vec);
+        acc_vec
+    }).reduce(|| Vec::new(), |mut acc_vec, vec: Vec<Option<Polynomial<LargeField>>>|{
+        acc_vec.extend(vec);
+        acc_vec
+    });
+    let all_polys_positive = polys.par_iter().all(|poly| poly.is_some());
+    if all_polys_positive{
+        let polys_vec = polys.into_iter().map(|x| x.unwrap()).collect();
+        (true, Some(polys_vec))
+    }
+    else{
+        (false, None)
+    }
+}

@@ -202,7 +202,7 @@ impl Context {
         let threshold:usize = 10000;
         let rbc_start_id = threshold*config.id;
 
-        let use_fft = true;
+        let use_fft = false;
         tokio::spawn(async move {
             let mut c = Context {
                 net_send: consensus_net,

@@ -77,6 +77,7 @@ impl Context{
 
     pub async fn handle_random_mask_shares(&mut self, share_sender: Replica, origin: Replica, shares: Vec<LargeFieldSer>, nonce: LargeFieldSer, blinding_nonce: LargeFieldSer){
         // Send request to share oracle
+        log::info!("Received random mask shares from sender {} for secret of origin {}", share_sender, origin);
         if self.output_mask_state.acs_recon_set.contains(&origin){
             let _status = self.avss_send.send((false, None, Some((origin,share_sender, (shares, nonce, blinding_nonce))))).await;
         }

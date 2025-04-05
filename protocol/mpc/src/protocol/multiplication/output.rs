@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crypto::hash::do_hash;
 use lambdaworks_math::traits::ByteConversion;
-use protocol::{LargeFieldSer, LargeField};
+use protocol::{LargeFieldSer, LargeField, check_if_all_points_lie_on_degree_x_polynomial};
 use types::Replica;
 
 use crate::{Context, msg::ProtMsg};
@@ -65,7 +65,7 @@ impl Context{
                 }
             }
             // Reconstruct the outputs
-            let verification_result = Self::check_if_all_points_lie_on_degree_x_polynomial(evaluation_points, evaluations, self.num_faults+1);
+            let verification_result = check_if_all_points_lie_on_degree_x_polynomial(evaluation_points, evaluations, self.num_faults+1);
             if verification_result.0{
                 let polys = verification_result.1.unwrap();
                 // Output wires reconstructed

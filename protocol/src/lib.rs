@@ -1,5 +1,5 @@
 mod types;
 pub use types::*;
 
-mod poly;
+pub mod poly;
 pub use poly::*;

@@ -27,7 +27,6 @@ impl Context{
             if status.is_err(){
                 log::error!("Failed to send random values to Sh2t protocol for batch {} because of error: {:?}", batch, status.err().unwrap());
             }
-            //self.broadcast(ProtMsg::ReconstructCoin()).await;
         }
         // Random masks for output wires
         let mut random_masks = Vec::new();
@@ -206,7 +205,8 @@ impl Context{
                 self.rand_sharings_state.sh2t_shares.clear();
 
                 self.generate_random_mask_shares(self.rand_sharings_state.acs_output.clone(),vandermonde_matrix).await;
-                self.terminate("Term".to_string()).await;
+                self.reconstruct_random_masks().await;
+                //self.terminate("Term".to_string()).await;
             }
         }
     }
