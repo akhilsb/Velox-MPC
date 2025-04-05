@@ -5,7 +5,8 @@ use protocol::LargeField;
 use types::Replica;
 
 pub struct MultState{
-    pub depth_share_map: HashMap<usize, SingleDepthState>
+    pub depth_share_map: HashMap<usize, SingleDepthState>,
+    pub output_layer: OutputLayerState,
 }
 
 pub struct SingleDepthState{
@@ -47,10 +48,27 @@ impl SingleDepthState{
     }
 }
 
+pub struct OutputLayerState{
+    pub output_wire_shares: HashMap<usize, (LargeField,Vec<LargeField>)>,
+    pub reconstructed_masked_outputs: Option<Vec<LargeField>>,
+    pub random_mask_shares: HashMap<usize, (LargeField,Vec<LargeField>)>,
+}
+
+impl OutputLayerState{
+    pub fn new() -> Self {
+        OutputLayerState{
+            output_wire_shares: HashMap::default(),
+            reconstructed_masked_outputs: None,
+            random_mask_shares: HashMap::default()
+        }
+    }
+}
+
 impl MultState{
     pub fn new() -> Self {
         MultState{
-            depth_share_map: HashMap::new()
+            depth_share_map: HashMap::new(),
+            output_layer: OutputLayerState::new()   
         }
     }
 

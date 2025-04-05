@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{context::Context, msg::ProtMsg};
-use crypto::hash::verf_mac;
+use crypto::{hash::verf_mac};
 use types::{WrapperMsg};
 
 impl Context {
@@ -58,6 +58,14 @@ impl Context {
                 ProtMsg::ReconstructVerfOutputSharing(ser_x_share, ser_y_share, ser_z_share)=>{
                     log::debug!("Received ReconstructVerfOutputSharing message");
                     self.handle_reconstruct_verf_output_sharing(ser_x_share, ser_y_share, ser_z_share, wrapper_msg.sender).await;
+                },
+                ProtMsg::ReconstructMaskedOutput(ser_shares) =>{
+                    log::debug!("Received ReconstructMaskedOutput message");
+                    self.handle_reconstruct_masked_output(ser_shares, wrapper_msg.sender).await;
+                },
+                ProtMsg::ReconstructOutputMasks(_ser_shares)=>{
+                    log::debug!("Received ReconstructOutputMasks message");
+                    //self.handle_reconstruct_output_masks(ser_shares, wrapper_msg.sender).await;
                 },
             }
         } else {

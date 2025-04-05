@@ -277,12 +277,13 @@ impl Context{
             if (a_sec.mul(b_sec)) == c_sec{
                 log::info!("handle_reconstruct_verf_output_sharing: Multiplication constraint holds.");
                 // Output from here
+                // Code goes back to the output phase from here
             }
             else{
                 log::error!("handle_reconstruct_verf_output_sharing: Multiplication constraint does not hold, with {} {} {}", a_sec, b_sec, c_sec);
+                return;
             }
         }
-
     }
 
     pub fn check_if_all_points_lie_on_degree_x_polynomial(eval_points: Vec<LargeField>, polys_vector: Vec<Vec<LargeField>>, degree: usize) -> (bool,Option<Vec<Polynomial<LargeField>>>){

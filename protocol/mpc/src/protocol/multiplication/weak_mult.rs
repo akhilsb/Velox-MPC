@@ -62,11 +62,24 @@ impl Context{
             self.verf_state.add_mult_output_shares(depth, shares_next_depth.clone()); // Store the shares for the next depth
             // self.choose_multiplication_protocol(a_shares, b_shares, depth)
             // How to handle next depth wires?
-            if depth > self.max_depth{
-                self.handle_ex_mult_termination(depth, shares_next_depth).await;
+            if depth == self.max_depth{
+                // Trigger output reconstruction
+                // Add output wires to the multiplication state as well. 
+                log::info!("Multiplication terminated at depth {}, adding random masks to output wires",depth);
+                // TODO: make all these addition and multiplication wires
+                self.mult_state.output_layer.output_wire_shares.insert(
+                    self.myid, (
+                        Self::get_share_evaluation_point(self.myid, self.use_fft, self.roots_of_unity.clone())
+                        ,shares_next_depth
+                    )
+                );
+                log::info!("Starting verification of multiplications");
+                // Start verification from here
+                //self.delinearize_mult_tuples().await;
             }
-            else{
+            else if depth > self.max_depth{
                 // TODO: Initiate next depth multiplication here. 
+                self.handle_ex_mult_termination(depth, shares_next_depth).await;
             } 
         }
         else{

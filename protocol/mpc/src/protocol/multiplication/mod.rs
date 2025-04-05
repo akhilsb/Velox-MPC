@@ -6,3 +6,5 @@ pub use mult_state::MultState;
 mod quad_mult;
 
 mod lin_mult;
+
+mod output;

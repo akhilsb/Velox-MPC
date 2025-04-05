@@ -14,5 +14,8 @@ pub enum ProtMsg{
     HashZMsg(Hash, usize, bool),
     ReconstructCoin(LargeFieldSer, usize),
 
-    ReconstructVerfOutputSharing(LargeFieldSer, LargeFieldSer, LargeFieldSer)
+    ReconstructVerfOutputSharing(LargeFieldSer, LargeFieldSer, LargeFieldSer),
+    ReconstructMaskedOutput(Vec<LargeFieldSer>),
+
+    ReconstructOutputMasks(Vec<LargeFieldSer>)
 }
