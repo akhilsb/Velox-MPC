@@ -126,7 +126,8 @@ impl Context{
         }).collect();
 
         let broadcast_vec = (commitments, tot_sharings);
-        let ser_vec = bincode::serialize(&broadcast_vec).unwrap();
+        let inst_broadcast_vec = (instance_id, broadcast_vec);
+        let ser_vec = bincode::serialize(&inst_broadcast_vec).unwrap();
 
         let mut shares: Vec<(Replica,Option<Vec<u8>>)> = Vec::new();
         for rep in 0..self.num_nodes{
@@ -136,7 +137,8 @@ impl Context{
                 let nonce_share = nonce_evaluations[rep].clone().to_bytes_be();
                 
                 let shares_full = (shares_party, nonce_share);
-                let shares_ser = bincode::serialize(&shares_full).unwrap();
+                let inst_shares_full = (instance_id, shares_full);
+                let shares_ser = bincode::serialize(&inst_shares_full).unwrap();
 
                 //let enc_shares = encrypt(sec_key.as_slice(), shares_ser);
                 shares.push((rep, Some(shares_ser)));

@@ -34,7 +34,9 @@ impl RandomOutputMaskStruct{
 
 impl Context{
     pub async fn handle_avss_share_output(&mut self, origin: Replica, avss_share: AvssShare){
+        log::info!("Handling AVSS share from sender {}", origin);
         self.output_mask_state.avss_shares.insert(origin, avss_share);
+        self.send_term_event_to_acs_channel(origin).await;
     }
 
     pub async fn generate_random_mask_shares(&mut self, acs_recon_set: HashSet<Replica>, vdm_matrix: Vec<Vec<LargeField>>){
@@ -56,6 +58,7 @@ impl Context{
             let res = Self::matrix_vector_multiply(&vdm_matrix, &x);
             res
         }).flatten().collect();
+        log::info!("Generated random mask shares using AVSS and Vandermonde matrix with length {}", random_mask_shares.len());
         self.output_mask_state.rand_sharings.extend(random_mask_shares);
     }
 

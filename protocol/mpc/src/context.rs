@@ -329,7 +329,7 @@ impl Context {
         );
         
         if status_acs_2.is_err() {
-            log::error!("Error spawning acs because of {:?}", status_acs_2.err().unwrap());
+            log::error!("Error spawning acs 2 because of {:?}", status_acs_2.err().unwrap());
         }
 
         let mut signals = Signals::new(&[SIGINT, SIGTERM])?;
@@ -467,7 +467,6 @@ impl Context {
                             // Start your protocol from here
                             // Write a function to broadcast a message. We demonstrate an example with a PING function
                             // Dealer sends message to everybody. <M, init>
-
                             self.init_rand_sh(self.per_batch, self.tot_batches).await;
                         },
                         SyncState::STOP =>{

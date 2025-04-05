@@ -1,5 +1,3 @@
-//use types::{RBCSyncMsg, SyncMsg, SyncState};
-
 use crypto::aes_hash::MerkleTree;
 use lambdaworks_math::{traits::ByteConversion, polynomial::Polynomial};
 use protocol::LargeField;
@@ -33,7 +31,7 @@ impl Context{
             if acss_state.verification_status.get(&sender).unwrap().clone(){
                 // Send shares back to parent process
                 log::info!("Sending shares back to syncer for sender {}",sender);
-                if instance_id == self.avss_inst_id{
+                if self.avss_inst_id == instance_id{
                     acss_state.acss_status.insert(sender);
                     let shares = acss_state.shares.get(&sender).unwrap().clone();
                     let (comm,b_comm, dzk_poly) = acss_state.commitments.get(&sender).unwrap().clone();

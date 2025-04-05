@@ -3,15 +3,15 @@ use protocol::{interpolate_shares};
 use crate::{Context, protocol::ACSSABState};
 
 impl Context{
-    pub async fn handle_ctrbc_termination(&mut self, inst_id: usize, sender_rep: usize, content: Vec<u8>){
-        log::info!("Received CTRBC termination message from sender {} for instance ID {}",sender_rep,inst_id);
-        if !self.acss_ab_state.contains_key(&inst_id) {
-            let acss_state = ACSSABState::new();
-            self.acss_ab_state.insert(inst_id, acss_state);
-        }
-        let acss_state = self.acss_ab_state.get_mut(&inst_id).unwrap();
+    pub async fn handle_ctrbc_termination(&mut self, _inst_id: usize, sender_rep: usize, content: Vec<u8>){
+        log::info!("Received CTRBC termination message from sender {}",sender_rep);
         // Deserialize message
-        let comm_dzk_vals: (Vec<[u8;32]>,Vec<[u8;32]>,Vec<[u8;32]>,usize) = bincode::deserialize(content.as_slice()).unwrap();
+        let (instance_id, comm_dzk_vals): (usize, (Vec<[u8;32]>,Vec<[u8;32]>,Vec<[u8;32]>,usize)) = bincode::deserialize(content.as_slice()).unwrap();
+        if !self.acss_ab_state.contains_key(&instance_id) {
+            let acss_state = ACSSABState::new();
+            self.acss_ab_state.insert(instance_id, acss_state);
+        }
+        let acss_state = self.acss_ab_state.get_mut(&instance_id).unwrap();
         acss_state.commitments.insert(sender_rep, (comm_dzk_vals.0,comm_dzk_vals.1,comm_dzk_vals.2));
 
         // Interpolate shares here for first t parties
@@ -24,11 +24,11 @@ impl Context{
             acss_state.shares.insert(sender_rep, (shares,nonce_share,blinding_nonce_share));
         }
 
-        log::info!("Deserialization successful for sender {} for instance ID {}",sender_rep,inst_id);
+        log::info!("Deserialization successful for sender {} for instance ID {}",sender_rep,instance_id);
         // If shares already present, then verify shares using this commitment
         if acss_state.shares.contains_key(&sender_rep){
             // Verify shares
-            self.verify_shares(sender_rep,inst_id).await;
+            self.verify_shares(sender_rep,instance_id).await;
         }
     }
 }

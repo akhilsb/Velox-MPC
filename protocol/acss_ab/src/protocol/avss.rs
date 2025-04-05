@@ -8,7 +8,9 @@ use crate::Context;
 impl Context{
     pub async fn init_avss(&mut self, secrets: Vec<LargeFieldSer>){
         // Use the avss instance id for this
-        let secrets_deser = secrets.into_iter().map(|x| LargeField::from_bytes_be(&x).unwrap()).collect::<Vec<LargeField>>();
+        log::info!("Initializing AVSS with instance id {}", self.acss_id+1);
+
+        let secrets_deser: Vec<LargeField> = secrets.into_iter().map(|x| LargeField::from_bytes_be(&x).unwrap()).collect::<Vec<LargeField>>();
         self.init_acss_ab(secrets_deser, self.avss_inst_id).await;
     }
 

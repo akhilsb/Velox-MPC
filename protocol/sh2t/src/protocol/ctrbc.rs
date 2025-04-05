@@ -3,7 +3,9 @@ use protocol::{interpolate_shares};
 use crate::Context;
 
 impl Context{
-    pub async fn handle_ctrbc_termination(&mut self, instance_id: usize, sender_rep: usize, content: Vec<u8>){
+    pub async fn handle_ctrbc_termination(&mut self, _instance_id: usize, sender_rep: usize, content: Vec<u8>){
+        // Deserialize message
+        let (instance_id,comm_dzk_vals): (usize,(Vec<[u8;32]>,usize)) = bincode::deserialize(content.as_slice()).unwrap();
         log::info!("Received CTRBC termination message from sender {} for instance ID {}",sender_rep,instance_id);
 
         if !self.sh2t_state_map.contains_key(&instance_id) {
@@ -12,8 +14,6 @@ impl Context{
         }
         let sh2t_state = self.sh2t_state_map.get_mut(&instance_id).unwrap();
 
-        // Deserialize message
-        let comm_dzk_vals: (Vec<[u8;32]>,usize) = bincode::deserialize(content.as_slice()).unwrap();
         sh2t_state.commitments.insert(sender_rep, comm_dzk_vals.0);
 
         // Interpolate shares here for first t parties

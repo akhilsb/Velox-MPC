@@ -62,14 +62,7 @@ impl Context{
         let shares_batches_map = self.rand_sharings_state.shares.get_mut(&sender).unwrap();
         shares_batches_map.insert(instance, shares_deser);
 
-        if shares_batches_map.len() == self.tot_batches{
-            // ACSS is complete. Wait for sh2t sharings now
-            log::info!("ACSS completed for sender {} for all batches", sender);
-
-            self.rand_sharings_state.acss_completed_parties.insert(sender);
-            self.send_term_event_to_acs_channel(sender).await;
-            self.check_termination().await;
-        }
+        self.send_term_event_to_acs_channel(sender).await;
     }
 
     pub async fn handle_sh2t_term_msg(&mut self, instance: usize, sender: usize, shares: Option<Vec<LargeFieldSer>>){
@@ -93,20 +86,23 @@ impl Context{
         let shares_batches_map = self.rand_sharings_state.sh2t_shares.get_mut(&sender).unwrap();
         shares_batches_map.insert(instance, shares_deser);
 
-        if shares_batches_map.len() == self.tot_batches{
-            log::info!("2t Sharing completed for sender {} for all batches", sender);
-            // ACSS is complete. Wait for sh2t sharings now
-            self.rand_sharings_state.sh2t_completed_parties.insert(sender);
-            self.send_term_event_to_acs_channel(sender).await;
-            self.check_termination().await;
-        }
+        self.send_term_event_to_acs_channel(sender).await;
     }
 
     pub async fn send_term_event_to_acs_channel(&mut self, sender: usize){
-        if self.rand_sharings_state.acss_completed_parties.contains(&sender) && self.rand_sharings_state.sh2t_completed_parties.contains(&sender){
-            // Initiate ACS with this sender
-            log::info!("Sender completed both 2t sharings and ACSS, initiating ACS with sender {}", sender);
+        if !self.rand_sharings_state.shares.contains_key(&sender) || !self.rand_sharings_state.sh2t_shares.contains_key(&sender) || !self.output_mask_state.avss_shares.contains_key(&sender){
+            log::debug!("ACSS, Sh2t, and AVSS not completed for sender {} for all batches", sender);
+            return;
+        }
+        let shares_batches_map = self.rand_sharings_state.shares.get_mut(&sender).unwrap();
+        let share_2t_batches_map = self.rand_sharings_state.sh2t_shares.get_mut(&sender).unwrap();
+        if shares_batches_map.len() == self.tot_batches && share_2t_batches_map.len() == self.tot_batches && self.output_mask_state.avss_shares.contains_key(&sender){
+            // ACSS is complete. Wait for sh2t sharings now
+            log::info!("ACSS, Sh2t, and AVSS completed for sender {} for all batches", sender);
+            log::info!("Batches info: {:?} {:?}", shares_batches_map.keys(),share_2t_batches_map.keys());
+            self.rand_sharings_state.acss_completed_parties.insert(sender);
             let _status = self.acs_event_send.send(sender).await;
+            self.check_termination().await;
         }
     }
 
@@ -117,6 +113,7 @@ impl Context{
     }
 
     pub async fn check_termination(&mut self){
+        log::info!("Checking termination for random sharings");
         if self.rand_sharings_state.rand_sharings_mult.len() > 0{
             // Sharings already generated, return back
             return;
@@ -124,7 +121,7 @@ impl Context{
         if self.rand_sharings_state.acs_output.len() > 0{
             let mut flag = true;
             for party in self.rand_sharings_state.acs_output.clone().into_iter(){
-                flag =  flag && self.rand_sharings_state.acss_completed_parties.contains(&party) && self.rand_sharings_state.sh2t_completed_parties.contains(&party) && self.output_mask_state.avss_shares.contains_key(&party);
+                flag =  flag && self.rand_sharings_state.acss_completed_parties.contains(&party);
             }
             if flag{
                 // All parties in the ACS state have completed ACSS and 2t-sharing
@@ -151,20 +148,30 @@ impl Context{
                         let shares = self.rand_sharings_state.shares.get(&party).unwrap();
                         let shares_2t = self.rand_sharings_state.sh2t_shares.get(&party).unwrap();
                         
-                        for batch in 1..self.tot_batches+1{
-                            let shares_batch = shares.get(&batch).unwrap();
-                            for share in shares_batch{
-                                acs_indexed_share_groups[index].push(share.clone());
-                                index += 1;
+                        for batch in 0..self.tot_batches{
+                            if !shares.contains_key(&batch){
+                                log::error!("Batch {} not found in shares_batch", batch);
+                            }
+                            else{
+                                let shares_batch = shares.get(&batch).unwrap();
+                                for share in shares_batch{
+                                    acs_indexed_share_groups[index].push(share.clone());
+                                    index += 1;
+                                }
                             }
                         }
 
                         index = 0;
-                        for batch in 1..self.tot_batches+1{
-                            let shares_batch = shares_2t.get(&batch).unwrap();
-                            for share in shares_batch{
-                                acs_indexed_2t_share_groups[index].push(share.clone());
-                                index += 1;
+                        for batch in 0..self.tot_batches{
+                            if !shares_2t.contains_key(&batch){
+                                log::error!("Batch {} not found in shares_batch for 2t shares", batch);
+                            }
+                            else{
+                                let shares_batch = shares_2t.get(&batch).unwrap();
+                                for share in shares_batch{
+                                    acs_indexed_2t_share_groups[index].push(share.clone());
+                                    index += 1;
+                                }
                             }
                         }
                     }

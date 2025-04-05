@@ -199,7 +199,6 @@ impl Context{
         let blinding_mt_root = MerkleTree::new(blinding_commitments.clone(), &self.hash_context).root();
         // Generate DZK coefficients
         
-        
         let root_comm = self.hash_context.hash_two(share_root_comm, blinding_mt_root);
         // Convert root commitment to field element
         let root_comm_fe = LargeField::from_bytes_be(&root_comm).unwrap();
@@ -213,7 +212,8 @@ impl Context{
         // Serialize shares,commitments, and DZK polynomials
         let ser_dzk_coeffs: Vec<[u8;32]> = dzk_coeffs.coefficients.into_iter().map(|el| el.to_bytes_be()).collect();
         let broadcast_vec = (commitments, blinding_commitments, ser_dzk_coeffs, tot_sharings);
-        let ser_vec = bincode::serialize(&broadcast_vec).unwrap();
+        let serialized_broadcase_vec = (instance_id, broadcast_vec);
+        let ser_vec = bincode::serialize(&serialized_broadcase_vec).unwrap();
 
         let mut shares: Vec<(Replica,Option<Vec<u8>>)> = Vec::new();
         for rep in 0..self.num_nodes{
@@ -225,7 +225,8 @@ impl Context{
                 let blinding_nonce_share = nonce_blinding_poly_evaluations[rep].clone().to_bytes_be();
                 
                 let shares_full = (shares_party, nonce_share, blinding_nonce_share);
-                let shares_ser = bincode::serialize(&shares_full).unwrap();
+                let serialized_shares = (instance_id, shares_full);
+                let shares_ser = bincode::serialize(&serialized_shares).unwrap();
 
                 //let enc_shares = encrypt(sec_key.as_slice(), shares_ser);
                 shares.push((rep, Some(shares_ser)));

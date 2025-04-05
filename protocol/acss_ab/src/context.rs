@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap},
     net::{SocketAddr, SocketAddrV4},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -258,6 +258,7 @@ impl Context {
                                 .unwrap()
                                 .as_millis());
                     let secrets_field: Vec<LargeField> = secrets.into_iter().map(|secret| LargeField::from_bytes_be(&secret).unwrap()).collect();
+                    self.acss_id = id;
                     self.init_acss_ab(secrets_field, id).await;
                 },
                 avss_msg = self.inp_avss.recv() =>{
