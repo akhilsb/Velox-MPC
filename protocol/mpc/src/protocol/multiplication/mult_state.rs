@@ -51,6 +51,12 @@ impl SingleDepthState{
 pub struct OutputLayerState{
     pub output_wire_shares: HashMap<usize, (LargeField,Vec<LargeField>)>,
     pub reconstructed_masked_outputs: Option<Vec<LargeField>>,
+
+    // CTRBC outputs
+    pub broadcasted_masked_outputs: HashSet<Hash>,
+    pub num_parties_broadcasted: usize,
+    pub num_parties_aborted: usize,
+
     pub random_mask_shares: HashMap<usize, (LargeField,Vec<LargeField>)>,
 }
 
@@ -59,6 +65,11 @@ impl OutputLayerState{
         OutputLayerState{
             output_wire_shares: HashMap::default(),
             reconstructed_masked_outputs: None,
+
+            broadcasted_masked_outputs: HashSet::default(),
+            num_parties_broadcasted: 0,
+            num_parties_aborted: 0,
+
             random_mask_shares: HashMap::default()
         }
     }

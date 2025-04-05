@@ -377,6 +377,13 @@ impl Context {
                     log::debug!("Received message from RBC channel {:?}", acs_output);
                     self.handle_acs_output(acs_output).await;
                 },
+                ctrbc_output = self.ctrbc_out_recv.recv() =>{
+                    let ctrbc_output = ctrbc_output.ok_or_else(||
+                        anyhow!("Networking layer has closed")
+                    )?;
+                    log::debug!("Received message from CTRBC channel {:?}", ctrbc_output);
+                    self.handle_output_delivery_ctrbc(ctrbc_output.0, ctrbc_output.1, ctrbc_output.2).await;
+                },
                 sync_msg = self.sync_recv.recv() =>{
                     let sync_msg = sync_msg.ok_or_else(||
                         anyhow!("Networking layer has closed")

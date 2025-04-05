@@ -1,3 +1,4 @@
+use crypto::hash::do_hash;
 use lambdaworks_math::traits::ByteConversion;
 use protocol::{LargeFieldSer, LargeField};
 use types::Replica;
@@ -70,10 +71,47 @@ impl Context{
                 let outputs_recon = polys.iter().map(|poly|poly.evaluate(&LargeField::zero())).collect::<Vec<LargeField>>();
                 self.mult_state.output_layer.reconstructed_masked_outputs = Some(outputs_recon.clone());
                 // Broadcast using a CTRBC channel
-                
+                let mut broadcast_output = Vec::new();
+                broadcast_output.push(1u8);
+                for output in outputs_recon.iter(){
+                    broadcast_output.extend(output.to_bytes_be());
+                }
+                let _status = self.ctrbc_event_send.send(broadcast_output).await;
             }
             else{
                 log::error!("Output reconstruction failed, shares not on a degree-t polynomial");
+                return;
+            }
+        }
+    }
+
+    pub async fn handle_output_delivery_ctrbc(&mut self, _instance_id: usize, sender: Replica, output_value: Vec<u8>){
+        log::info!("Received CTRBC output from party {}",sender);
+        if output_value.len() == 0{
+            log::error!("Received empty CTRBC output from party {}",sender);
+            return;
+        }
+        let success = output_value[0] == 1u8;
+        if success {
+            log::info!("Party {} successfully reconstructed output wires", sender);
+            let hash_val = do_hash(&output_value);
+            self.mult_state.output_layer.broadcasted_masked_outputs.insert(hash_val);
+            self.mult_state.output_layer.num_parties_broadcasted += 1;
+
+            if self.mult_state.output_layer.num_parties_broadcasted == self.num_nodes - self.num_faults && self.mult_state.output_layer.broadcasted_masked_outputs.len() == 1{
+                // Reconstruct the output
+                log::info!("All parties broadcasted the same output, MPC is a success. Reconstructing the random masks");
+                // Reconstruct random masks from here
+            }
+            else{
+                log::error!("Party {} broadcasted output, waiting for others", sender);
+            }
+        }
+        else {
+            log::info!("Party {} aborted the protocol", sender);
+            self.mult_state.output_layer.num_parties_aborted +=1;
+            if self.mult_state.output_layer.num_parties_aborted == self.num_faults+1{
+                log::error!("t+1 parties aborted the protocol, aborting the protocol");
                 return;
             }
         }
