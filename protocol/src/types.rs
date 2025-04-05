@@ -3,3 +3,6 @@ use lambdaworks_math::field::{fields::{fft_friendly::stark_252_prime_field::{Mon
 pub type LargeField = FieldElement<MontgomeryBackendPrimeField<MontgomeryConfigStark252PrimeField, 4>>;
 pub type FieldType = MontgomeryBackendPrimeField<MontgomeryConfigStark252PrimeField, 4>;
 pub type LargeFieldSer = [u8;32];
+
+// Shares, nonce polynomial, blinding_nonce polynomial
+pub type AvssShare =  (Vec<LargeFieldSer>, LargeFieldSer, LargeFieldSer);

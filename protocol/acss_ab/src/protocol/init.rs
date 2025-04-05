@@ -5,7 +5,6 @@ use crypto::{hash::{do_hash, Hash}, aes_hash::MerkleTree};
 use lambdaworks_math::{unsigned_integer::element::UnsignedInteger, polynomial::Polynomial, traits::ByteConversion};
 use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, sample_polynomials_from_prf};
 use rand::random;
-use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use types::Replica;
 
 use super::ACSSABState;
@@ -283,36 +282,26 @@ impl Context{
         }
 
         // Second, verify DZK proof
-        let shares_ff: Vec<LargeField> = shares.into_par_iter().map(|el| LargeField::from_bytes_be(el.as_slice()).unwrap()).collect();
-        let dzk_poly_coeffs: Vec<LargeField> = dzk_coeffs.into_par_iter().map(|el| LargeField::from_bytes_be(el.as_slice()).unwrap()).collect();
+        let shares_ff: Vec<LargeField> = shares.into_iter().map(|el| LargeField::from_bytes_be(el.as_slice()).unwrap()).collect();
+        let dzk_poly_coeffs: Vec<LargeField> = dzk_coeffs.into_iter().map(|el| LargeField::from_bytes_be(el.as_slice()).unwrap()).collect();
         let dzk_poly = Polynomial::new(dzk_poly_coeffs.as_slice());
         // Change this to be root of unity
-        let dzk_point;
-        if !self.use_fft{
-            dzk_point = dzk_poly.evaluate(&LargeField::new(UnsignedInteger::from((self.myid+1) as u64)));
-        }
-        else{
-            // get point of evaluation
-            let eval_point = self.roots_of_unity[self.myid];
-            dzk_point = dzk_poly.evaluate(&eval_point);
-        }
-        
+
         let share_root = MerkleTree::new(share_commitments, &self.hash_context).root();
         let blinding_root = MerkleTree::new(blinding_commitments, &self.hash_context).root();
         let root_comm = self.hash_context.hash_two(share_root, blinding_root);
-
-        // Generate DZK point
         let root_comm_fe = LargeField::from_bytes_be(&root_comm).unwrap();
-        let mut agg_shares_point = LargeField::new(UnsignedInteger::from(0u64));
-        let mut root_comm_fe_mul = root_comm_fe.clone();
-        for share in shares_ff{
-            agg_shares_point = agg_shares_point.add(share.mul(root_comm_fe_mul));
-            root_comm_fe_mul = root_comm_fe_mul.mul(root_comm_fe.clone());
-        }
 
-        let blinding_poly_share_bytes = dzk_point.sub(agg_shares_point).to_bytes_be();
-        let blinding_hash = self.hash_context.hash_two(blinding_poly_share_bytes,blinding_nonce_share);
-        if blinding_hash != blinding_comm_sender{
+        let verf_status = self.evaluate_dzk_poly(
+            root_comm_fe, 
+            self.myid, 
+            &dzk_poly, 
+            &shares_ff, 
+            blinding_comm_sender, 
+            blinding_nonce_share
+        );
+        let acss_ab_state = self.acss_ab_state.get_mut(&instance_id).unwrap();
+        if !verf_status{
             // Invalid DZK proof
             log::error!("Invalid DZK proof from {}", sender);
             acss_ab_state.verification_status.insert(sender,false);
@@ -320,9 +309,46 @@ impl Context{
         }
         log::info!("Share from {} verified", sender);
         // If successful, add to verified list
+        // Reborrow share
+        
         acss_ab_state.verification_status.insert(sender,true);
         // Start reliable agreement
         let _status = self.inp_ra_channel.send((sender,1,instance_id)).await;
         self.check_termination(sender, instance_id).await;
+    }
+
+    pub fn evaluate_dzk_poly(
+        &self,
+        root_comm_fe: LargeField,
+        share_sender: Replica,
+        dzk_poly: &Polynomial<LargeField>, 
+        shares: &Vec<LargeField>, 
+        blinding_comm: LargeFieldSer,
+        blinding_nonce: LargeFieldSer,
+    )-> bool{
+        // Change this to be root of unity
+        let dzk_point;
+        if !self.use_fft{
+            dzk_point = dzk_poly.evaluate(&LargeField::new(UnsignedInteger::from((share_sender+1) as u64)));
+        }
+        else{
+            // get point of evaluation
+            let eval_point = self.roots_of_unity[share_sender];
+            dzk_point = dzk_poly.evaluate(&eval_point);
+        }
+        let mut agg_shares_point = LargeField::zero();
+        let mut root_comm_fe_mul = root_comm_fe.clone();
+        for share in shares{
+            agg_shares_point = agg_shares_point.add(share.mul(root_comm_fe_mul));
+            root_comm_fe_mul = root_comm_fe_mul.mul(root_comm_fe.clone());
+        }
+
+        let blinding_poly_share_bytes = dzk_point.sub(agg_shares_point).to_bytes_be();
+        let blinding_hash = self.hash_context.hash_two(blinding_poly_share_bytes,blinding_nonce);
+        if blinding_hash != blinding_comm{
+            // Invalid DZK proof
+            return false;
+        }
+        true
     }
 }

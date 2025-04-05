@@ -13,7 +13,7 @@ use network::{
     plaintcp::{CancelHandler},
     Acknowledgement,
 };
-use protocol::{LargeFieldSer, LargeField};
+use protocol::{LargeFieldSer, LargeField, AvssShare};
 //use signal_hook::{iterator::Signals, consts::{SIGINT, SIGTERM}};
 use tokio::{sync::{
     mpsc::{Receiver, Sender, channel},
@@ -24,7 +24,7 @@ use types::{Replica};
 
 use crypto::aes_hash::HashState;
 
-use crate::protocol::ACSSABState;
+use crate::protocol::{ACSSABState};
 
 pub struct Context {
     /// Data context
@@ -43,6 +43,7 @@ pub struct Context {
     exit_rx: oneshot::Receiver<()>,
     
     pub acss_ab_state: HashMap<usize,ACSSABState>,
+    pub avss_state: ACSSABState,
 
     // Maximum number of RBCs that can be initiated by a node. Keep this as an identifier for RBC service. 
     pub threshold: usize,
@@ -51,9 +52,13 @@ pub struct Context {
     pub acss_id: usize,
 
     pub num_threads: usize,
-    /// Input and output message queues for Reliable Broadcast
+    
+    // Input queue for receiving acss requests with bool field indicating ACSS or AVSS.
     pub inp_acss: Receiver<(usize, Vec<LargeFieldSer>)>,
     pub out_acss: Sender<(usize, Replica,Option<Vec<LargeFieldSer>>)>,
+
+    pub inp_avss: Receiver<(bool, Option<Vec<LargeFieldSer>>, Option<(Replica, Replica, AvssShare)>)>,
+    pub out_avss: Sender<(bool, Option<(Replica,AvssShare)>, Option<(Replica,Replica,AvssShare)>)>,
 
     /// CTRBC input and output channels
     pub inp_ctrbc: Sender<Vec<u8>>,
@@ -70,6 +75,8 @@ pub struct Context {
     pub use_fft: bool,
     pub roots_of_unity: Vec<LargeField>,
 
+    pub avss_inst_id: usize, 
+
     // pub sync_send: TcpReliableSender<Replica, SyncMsg, Acknowledgement>,
     // pub sync_recv: UnboundedReceiver<SyncMsg>,
 }
@@ -77,8 +84,10 @@ pub struct Context {
 impl Context {
     pub fn spawn(
         config: Node,
-        input_msgs: Receiver<(usize,Vec<LargeFieldSer>)>, 
-        output_msgs: Sender<(usize,Replica,Option<Vec<LargeFieldSer>>)>, 
+        input_acss: Receiver<(usize,Vec<LargeFieldSer>)>, 
+        output_acss: Sender<(usize,Replica,Option<Vec<LargeFieldSer>>)>,
+        input_avss: Receiver<(bool, Option<Vec<LargeFieldSer>>, Option<(Replica, Replica, AvssShare)>)>,
+        output_avss: Sender<(bool, Option<(Replica,AvssShare)>, Option<(Replica,Replica,AvssShare)>)>, 
         use_fft: bool,
         _byz: bool
     ) -> anyhow::Result<(oneshot::Sender<()>, Vec<Result<oneshot::Sender<()>>>)> {
@@ -155,14 +164,19 @@ impl Context {
                 exit_rx: exit_rx,
                 
                 acss_ab_state: HashMap::default(),
+                avss_state: ACSSABState::new(),
+
                 threshold: 10000,
 
                 max_id: rbc_start_id,
                 acss_id: 0,
                 
                 num_threads: 4,
-                inp_acss: input_msgs,
-                out_acss: output_msgs,
+                inp_acss: input_acss,
+                out_acss: output_acss,
+
+                inp_avss: input_avss,
+                out_avss: output_avss,
 
                 roots_of_unity: Self::gen_roots_of_unity(config.num_nodes),
 
@@ -176,6 +190,8 @@ impl Context {
                 recv_out_ra: ra_out_recv_channel,
 
                 use_fft: use_fft,
+
+                avss_inst_id: 200,
 
                 // Syncer related stuff
                 // sync_send: sync_net,
@@ -243,6 +259,24 @@ impl Context {
                                 .as_millis());
                     let secrets_field: Vec<LargeField> = secrets.into_iter().map(|secret| LargeField::from_bytes_be(&secret).unwrap()).collect();
                     self.init_acss_ab(secrets_field, id).await;
+                },
+                avss_msg = self.inp_avss.recv() =>{
+                    let (sharing, secrets, recon_request) = avss_msg.ok_or_else(||
+                        anyhow!("Networking layer has closed")
+                    )?;
+                    if sharing {
+                        let secrets = secrets.unwrap();
+                        log::info!("Received request to start AVSS for {} secrets at time: {:?}",secrets.len() , SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis());
+                        self.init_avss(secrets).await;
+                    }
+                    else{
+                        let recon_request = recon_request.unwrap();
+                        log::info!("Received request to reconstruct AVSS for secrets shared by party {} and shares sent by {}",recon_request.0, recon_request.1);
+                        self.share_validity_oracle(recon_request.0, recon_request.1, recon_request.2).await;
+                    }
                 },
                 ctrbc_msg = self.recv_out_ctrbc.recv() =>{
                     let ctrbc_msg = ctrbc_msg.ok_or_else(||

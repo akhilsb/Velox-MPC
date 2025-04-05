@@ -1,5 +1,9 @@
 //use types::{RBCSyncMsg, SyncMsg, SyncState};
 
+use crypto::aes_hash::MerkleTree;
+use lambdaworks_math::{traits::ByteConversion, polynomial::Polynomial};
+use protocol::LargeField;
+
 use crate::{Context, protocol::ACSSABState};
 
 impl Context{
@@ -29,9 +33,30 @@ impl Context{
             if acss_state.verification_status.get(&sender).unwrap().clone(){
                 // Send shares back to parent process
                 log::info!("Sending shares back to syncer for sender {}",sender);
-                let shares = acss_state.shares.get(&sender).unwrap().clone();
-                let _status = self.out_acss.send((instance_id,sender,Some(shares.0))).await;
-                acss_state.acss_status.insert(sender);
+                if instance_id == self.avss_inst_id{
+                    acss_state.acss_status.insert(sender);
+                    let shares = acss_state.shares.get(&sender).unwrap().clone();
+                    let (comm,b_comm, dzk_poly) = acss_state.commitments.get(&sender).unwrap().clone();
+
+                    // Compute root commitment
+                    let share_root = MerkleTree::new(comm, &self.hash_context).root();
+                    let blinding_root = MerkleTree::new(b_comm, &self.hash_context).root();
+                    let root_comm = self.hash_context.hash_two(share_root, blinding_root);
+                    let root_comm_fe = LargeField::from_bytes_be(&root_comm).unwrap();
+                    acss_state.commitment_root_fe.insert(sender, root_comm_fe);
+
+                    // Compute DZK polynomial
+                    let dzk_poly_coeffs: Vec<LargeField> = dzk_poly.into_iter().map(|el| LargeField::from_bytes_be(el.as_slice()).unwrap()).collect();
+                    let dzk_poly = Polynomial::new(dzk_poly_coeffs.as_slice());
+                    acss_state.dzk_poly.insert(sender, dzk_poly);
+
+                    let _status = self.out_avss.send((true,Some((sender,shares)),None)).await;
+                }
+                else{
+                    let shares = acss_state.shares.get(&sender).unwrap().clone();
+                    let _status = self.out_acss.send((instance_id,sender,Some(shares.0))).await;
+                    acss_state.acss_status.insert(sender);
+                }
                 //self.terminate("Hello".to_string()).await;
             }
             else{
@@ -40,7 +65,6 @@ impl Context{
             }
         }
     }
-
     // Invoke this function once you terminate the protocol
     // pub async fn terminate(&mut self, data: String) {
     //     let rbc_sync_msg = RBCSyncMsg{

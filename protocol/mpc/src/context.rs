@@ -12,7 +12,7 @@ use network::{
     plaintcp::{CancelHandler, TcpReceiver, TcpReliableSender},
     Acknowledgement,
 };
-use protocol::{LargeFieldSer, LargeField};
+use protocol::{LargeFieldSer, LargeField, AvssShare};
 use signal_hook::{iterator::Signals, consts::{SIGINT, SIGTERM}};
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedReceiver, Receiver, Sender, channel},
@@ -59,6 +59,9 @@ pub struct Context {
     /// Input and output message queues for Reliable Broadcast
     pub acss_ab_send: Sender<(usize, Vec<LargeFieldSer>)>,
     pub acss_ab_out_recv: Receiver<(usize, Replica, Option<Vec<LargeFieldSer>>)>,
+
+    pub avss_send: Sender<(bool, Option<Vec<LargeFieldSer>>, Option<(Replica, Replica, AvssShare)>)>,
+    pub avss_out_recv: Receiver<(bool, Option<(Replica,AvssShare)>, Option<(Replica,Replica,AvssShare)>)>,
 
     pub sh2t_send: Sender<(usize, Vec<LargeFieldSer>)>,
     pub sh2t_out_recv: Receiver<(usize, Replica, Option<Vec<LargeFieldSer>>)>,
@@ -177,6 +180,9 @@ impl Context {
         let (acss_ab_send, acss_ab_recv) = channel(10000);
         let (acss_ab_out_send, acss_ab_out_recv) = channel(10000);
 
+        let (avss_send, avss_recv) = channel(10000);
+        let (avss_out_send, avss_out_recv) = channel(10000);
+
         let (sh2t_send, sh2t_recv) = channel(10000);
         let (sh2t_out_send, sh2t_out_recv) = channel(10000);
 
@@ -218,6 +224,9 @@ impl Context {
                 
                 acss_ab_send: acss_ab_send,
                 acss_ab_out_recv: acss_ab_out_recv,
+
+                avss_send: avss_send,
+                avss_out_recv: avss_out_recv,
 
                 sh2t_send: sh2t_send,
                 sh2t_out_recv: sh2t_out_recv,
@@ -262,6 +271,8 @@ impl Context {
             acss_ab_config,
             acss_ab_recv,
             acss_ab_out_send,
+            avss_recv,
+            avss_out_send,
             use_fft,
             false,
         );
