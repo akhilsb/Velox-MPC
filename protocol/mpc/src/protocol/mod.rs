@@ -1,7 +1,5 @@
-mod rand_sh;
-
-mod rand_state;
-pub use rand_state::RandSharings;
+mod rand_sharings;
+pub use crate::protocol::rand_sharings::rand_state::RandSharings;
 
 mod online_phase;
 

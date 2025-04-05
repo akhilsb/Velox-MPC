@@ -66,6 +66,9 @@ pub struct Context {
     pub acs_event_send: Sender<usize>,
     pub acs_out_recv: Receiver<Vec<usize>>,
 
+    pub ctrbc_event_send: Sender<Vec<u8>>,
+    pub ctrbc_out_recv: Receiver<(usize, Replica, Vec<u8>)>,
+
     // Housekeeping processes for tracking metrics of the protocol
     pub sync_send: TcpReliableSender<Replica, SyncMsg, Acknowledgement>,
     pub sync_recv: UnboundedReceiver<SyncMsg>,
@@ -102,10 +105,12 @@ impl Context {
         let mut acss_ab_config = config.clone();
         let mut sh2t_config = config.clone();
         let mut acs_config = config.clone();
+        let mut ctrbc_config = config.clone();
 
         let port_acss_ab: u16 = 0;
         let port_sh2t: u16 = 600;
         let port_acs: u16 = 1200;
+        let port_ctrbc = 1800;
 
         for (replica, address) in config.net_map.iter() {
             let address: SocketAddr = address.parse().expect("Unable to parse address");
@@ -113,10 +118,12 @@ impl Context {
             let acss_ab_address: SocketAddr = SocketAddr::new(address.ip(), address.port() + port_acss_ab);
             let sh2t_address: SocketAddr = SocketAddr::new(address.ip(), address.port() + port_sh2t);
             let acs_address: SocketAddr = SocketAddr::new(address.ip(), address.port() + port_acs);
+            let ctrbc_address: SocketAddr = SocketAddr::new(address.ip(), address.port() + port_ctrbc);
 
             acss_ab_config.net_map.insert(*replica, acss_ab_address.to_string());
             sh2t_config.net_map.insert(*replica, sh2t_address.to_string());
             acs_config.net_map.insert(*replica, acs_address.to_string());
+            ctrbc_config.net_map.insert(*replica, ctrbc_address.to_string());
 
             consensus_addrs.insert(*replica, SocketAddr::from(address.clone()));
             
@@ -168,6 +175,10 @@ impl Context {
 
         let (acs_inp_send, acs_inp_recv) = channel(10000);
         let (acs_out_send, acs_out_recv) = channel(10000);
+
+        let (ctrbc_send, ctrbc_recv) = channel(10000);
+        let (ctrbc_out_send, ctrbc_out_recv) = channel(10000);
+
         let threshold:usize = 10000;
         let rbc_start_id = threshold*config.id;
 
@@ -203,6 +214,9 @@ impl Context {
 
                 acs_event_send: acs_inp_send,
                 acs_out_recv: acs_out_recv,
+
+                ctrbc_event_send: ctrbc_send,
+                ctrbc_out_recv: ctrbc_out_recv,
 
                 // Syncer related stuff
                 sync_send: sync_net,
@@ -253,6 +267,7 @@ impl Context {
         if status_sh2t.is_err() {
             log::error!("Error spawning status_sh2t because of {:?}", status_sh2t.err().unwrap());
         }
+
         let status_acs = acs::Context::spawn(
             acs_config,
             acs_inp_recv,
@@ -261,7 +276,18 @@ impl Context {
         );
         
         if status_acs.is_err() {
-            log::error!("Error spawning acss_ab because of {:?}", status_acs.err().unwrap());
+            log::error!("Error spawning acs because of {:?}", status_acs.err().unwrap());
+        }
+
+        let ctrbc_status = ctrbc::Context::spawn(
+            ctrbc_config,
+            ctrbc_recv,
+            ctrbc_out_send,
+            false,
+        );
+
+        if ctrbc_status.is_err() {
+            log::error!("Error spawning CTRBC because of {:?}", ctrbc_status.err().unwrap());
         }
         
         let mut signals = Signals::new(&[SIGINT, SIGTERM])?;
