@@ -23,7 +23,7 @@ use types::{Replica, WrapperMsg, SyncMsg, SyncState};
 
 use crypto::{aes_hash::HashState};
 
-use crate::{msg::ProtMsg, handlers::{sync_handler::SyncHandler, handler::Handler}, protocol::{RandSharings, MultState, VerificationState}};
+use crate::{msg::ProtMsg, handlers::{sync_handler::SyncHandler, handler::Handler}, protocol::{RandSharings, MultState, VerificationState, rand_sharings::rand_mask::RandomOutputMaskStruct}};
 
 pub struct Context {
     /// Networking context
@@ -86,6 +86,8 @@ pub struct Context {
     pub mult_state: MultState,
     // Verification state for multiplication triples
     pub verf_state: VerificationState,
+    // Random masks for the output
+    pub output_mask_state: RandomOutputMaskStruct,
 
     /// Fast fourier transforms utility
     pub use_fft: bool,
@@ -93,6 +95,8 @@ pub struct Context {
 
     // Protocol parameters
     pub max_depth: usize,
+    pub output_mask_size: usize,
+
     pub delinearization_depth: usize, 
     pub compression_factor: usize,
 }
@@ -247,11 +251,14 @@ impl Context {
                 rand_sharings_state: RandSharings::new(),
                 mult_state: MultState::new(),
                 verf_state: VerificationState::new(),
+                output_mask_state: RandomOutputMaskStruct::new(),
 
                 use_fft: use_fft,
                 roots_of_unity: acss_ab::Context::gen_roots_of_unity(config.num_nodes),
 
                 max_depth: 100,
+                output_mask_size: 500,
+
                 delinearization_depth: 5000, 
                 compression_factor: 10,
             };
@@ -425,6 +432,22 @@ impl Context {
                     )?;
                     log::debug!("Received message from RBC channel {:?}", acs_output);
                     self.handle_mpc_output(acs_output).await;
+                },
+                avss_output = self.avss_out_recv.recv() =>{
+                    let avss_output = avss_output.ok_or_else(||
+                        anyhow!("Networking layer has closed")
+                    )?;
+                    log::debug!("Received message from AVSS channel {:?}", avss_output);
+                    if avss_output.0 {
+                        // This is a sharing output
+                        let (origin, avss_share) = avss_output.1.unwrap();
+                        self.handle_avss_share_output(origin, avss_share).await;
+                    }
+                    else{
+                        // This is a reconstruction output
+                        let (origin, share_sender, avss_share) = avss_output.2.unwrap();
+                        self.handle_avss_share_oracle_output(origin, share_sender, avss_share).await;
+                    }
                 },
                 sync_msg = self.sync_recv.recv() =>{
                     let sync_msg = sync_msg.ok_or_else(||

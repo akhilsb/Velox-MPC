@@ -19,11 +19,11 @@ impl Context{
         // Add random masks
         let mut random_mask_shares = Vec::with_capacity(output_wire_shares.len());
         for output_wire_share in output_wire_shares.iter_mut(){
-            if self.rand_sharings_state.rand_sharings_mult.is_empty(){
+            if self.output_mask_state.rand_sharings.is_empty(){
                 log::error!("Not enough random sharings for mask reconstruction, abandoning the protocol");
                 return;
             }
-            let random_mask_share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
+            let random_mask_share = self.output_mask_state.rand_sharings.pop_front().unwrap();
             *output_wire_share += random_mask_share.clone();
             random_mask_shares.push(random_mask_share);
         }

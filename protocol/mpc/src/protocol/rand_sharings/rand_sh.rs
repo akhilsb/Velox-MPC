@@ -29,6 +29,15 @@ impl Context{
             }
             //self.broadcast(ProtMsg::ReconstructCoin()).await;
         }
+        // Random masks for output wires
+        let mut random_masks = Vec::new();
+        for _ in 0..self.output_mask_size{
+            random_masks.push(rand_field_element().to_bytes_be());
+        }
+        let avss_status = self.avss_send.send((true, Some(random_masks), None)).await;
+        if avss_status.is_err(){
+            log::error!("Failed to send random values to AVSS protocol {:?}", avss_status.err().unwrap());
+        }
     }
 
     pub async fn handle_acss_term_msg(&mut self, instance: usize, sender: usize, shares: Option<Vec<LargeFieldSer>>){
@@ -115,7 +124,7 @@ impl Context{
         if self.rand_sharings_state.acs_output.len() > 0{
             let mut flag = true;
             for party in self.rand_sharings_state.acs_output.clone().into_iter(){
-                flag =  flag && self.rand_sharings_state.acss_completed_parties.contains(&party) && self.rand_sharings_state.sh2t_completed_parties.contains(&party);
+                flag =  flag && self.rand_sharings_state.acss_completed_parties.contains(&party) && self.rand_sharings_state.sh2t_completed_parties.contains(&party) && self.output_mask_state.avss_shares.contains_key(&party);
             }
             if flag{
                 // All parties in the ACS state have completed ACSS and 2t-sharing
@@ -128,7 +137,6 @@ impl Context{
                 // Build party-accumulated share vectors
                 let mut acs_indexed_share_groups: Vec<Vec<LargeField>> = Vec::new();
                 let mut acs_indexed_2t_share_groups: Vec<Vec<LargeField>> = Vec::new();
-                
                 
                 (0..self.tot_batches*self.per_batch).into_iter().for_each(|_|{
                     acs_indexed_share_groups.push(Vec::new());
@@ -190,6 +198,7 @@ impl Context{
                 self.rand_sharings_state.shares.clear();
                 self.rand_sharings_state.sh2t_shares.clear();
 
+                self.generate_random_mask_shares(vandermonde_matrix).await;
                 self.terminate("Term".to_string()).await;
             }
         }
