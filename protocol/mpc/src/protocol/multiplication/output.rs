@@ -96,15 +96,15 @@ impl Context{
         log::info!("Party {} successfully reconstructed output wires", sender);
         self.mult_state.output_layer.broadcasted_masked_outputs.insert(sender, output_value);
         let _status = self.acs_2_event_send.send(sender).await;
-        self.verify_mpc_termination().await;
+        self.verify_masked_output_reconstruction_termination().await;
     }
 
-    pub async fn handle_mpc_output(&mut self, acs_vec: Vec<Replica>){
+    pub async fn handle_prot_end_ba_output(&mut self, acs_vec: Vec<Replica>){
         self.mult_state.output_layer.acs_output.extend(acs_vec.clone());
-        self.verify_mpc_termination().await;
+        self.verify_masked_output_reconstruction_termination().await;
     }
 
-    pub async fn verify_mpc_termination(&mut self){
+    pub async fn verify_masked_output_reconstruction_termination(&mut self){
         if self.mult_state.output_layer.acs_output.is_empty(){
             return;
         }
@@ -133,6 +133,7 @@ impl Context{
             if successful_parties >= self.num_faults +1{
                 log::info!("MPC terminated successfully, t+1 parties have reconstructed the output");
                 log::info!("Reconstructing random mask using AVSS and public reconstruction");
+                self.reconstruct_random_masks().await;
             }
             if aborted_parties >= self.num_faults +1{
                 log::error!("MPC terminated with Abort, t+1 parties have aborted the protocol");

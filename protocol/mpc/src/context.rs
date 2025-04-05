@@ -431,7 +431,7 @@ impl Context {
                         anyhow!("Networking layer has closed")
                     )?;
                     log::debug!("Received message from RBC channel {:?}", acs_output);
-                    self.handle_mpc_output(acs_output).await;
+                    self.handle_prot_end_ba_output(acs_output).await;
                 },
                 avss_output = self.avss_out_recv.recv() =>{
                     let avss_output = avss_output.ok_or_else(||

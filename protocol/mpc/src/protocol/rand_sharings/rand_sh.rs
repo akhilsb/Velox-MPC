@@ -198,7 +198,7 @@ impl Context{
                 self.rand_sharings_state.shares.clear();
                 self.rand_sharings_state.sh2t_shares.clear();
 
-                self.generate_random_mask_shares(vandermonde_matrix).await;
+                self.generate_random_mask_shares(self.rand_sharings_state.acs_output.clone(),vandermonde_matrix).await;
                 self.terminate("Term".to_string()).await;
             }
         }

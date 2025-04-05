@@ -1,6 +1,7 @@
 use crypto::hash::Hash;
 use protocol::LargeFieldSer;
 use serde::{Serialize, Deserialize};
+use types::Replica;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ProtMsg{
@@ -17,5 +18,5 @@ pub enum ProtMsg{
     ReconstructVerfOutputSharing(LargeFieldSer, LargeFieldSer, LargeFieldSer),
     ReconstructMaskedOutput(Vec<LargeFieldSer>),
 
-    ReconstructOutputMasks(Vec<LargeFieldSer>)
+    ReconstructOutputMasks(Replica, Vec<LargeFieldSer>, LargeFieldSer, LargeFieldSer)
 }

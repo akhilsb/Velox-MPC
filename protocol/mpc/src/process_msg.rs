@@ -63,7 +63,7 @@ impl Context {
                     log::debug!("Received ReconstructMaskedOutput message");
                     self.handle_reconstruct_masked_output(ser_shares, wrapper_msg.sender).await;
                 },
-                ProtMsg::ReconstructOutputMasks(_ser_shares)=>{
+                ProtMsg::ReconstructOutputMasks(_origin, _ser_shares, _ser_nonce, _ser_blinding)=>{
                     log::debug!("Received ReconstructOutputMasks message");
                     //self.handle_reconstruct_output_masks(ser_shares, wrapper_msg.sender).await;
                 },
