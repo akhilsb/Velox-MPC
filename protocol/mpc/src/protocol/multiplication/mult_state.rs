@@ -53,9 +53,8 @@ pub struct OutputLayerState{
     pub reconstructed_masked_outputs: Option<Vec<LargeField>>,
 
     // CTRBC outputs
-    pub broadcasted_masked_outputs: HashSet<Hash>,
-    pub num_parties_broadcasted: usize,
-    pub num_parties_aborted: usize,
+    pub broadcasted_masked_outputs: HashMap<Replica,Vec<u8>>,
+    pub acs_output: Vec<Replica>,
 
     pub random_mask_shares: HashMap<usize, (LargeField,Vec<LargeField>)>,
 }
@@ -66,9 +65,8 @@ impl OutputLayerState{
             output_wire_shares: HashMap::default(),
             reconstructed_masked_outputs: None,
 
-            broadcasted_masked_outputs: HashSet::default(),
-            num_parties_broadcasted: 0,
-            num_parties_aborted: 0,
+            broadcasted_masked_outputs: HashMap::default(),
+            acs_output: Vec::new(),
 
             random_mask_shares: HashMap::default()
         }

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crypto::hash::do_hash;
 use lambdaworks_math::traits::ByteConversion;
 use protocol::{LargeFieldSer, LargeField};
@@ -91,27 +93,49 @@ impl Context{
             log::error!("Received empty CTRBC output from party {}",sender);
             return;
         }
-        let success = output_value[0] == 1u8;
-        if success {
-            log::info!("Party {} successfully reconstructed output wires", sender);
-            let hash_val = do_hash(&output_value);
-            self.mult_state.output_layer.broadcasted_masked_outputs.insert(hash_val);
-            self.mult_state.output_layer.num_parties_broadcasted += 1;
+        log::info!("Party {} successfully reconstructed output wires", sender);
+        self.mult_state.output_layer.broadcasted_masked_outputs.insert(sender, output_value);
+        let _status = self.acs_2_event_send.send(sender).await;
+        self.verify_mpc_termination().await;
+    }
 
-            if self.mult_state.output_layer.num_parties_broadcasted == self.num_nodes - self.num_faults && self.mult_state.output_layer.broadcasted_masked_outputs.len() == 1{
-                // Reconstruct the output
-                log::info!("All parties broadcasted the same output, MPC is a success. Reconstructing the random masks");
-                // Reconstruct random masks from here
-            }
-            else{
-                log::error!("Party {} broadcasted output, waiting for others", sender);
-            }
+    pub async fn handle_mpc_output(&mut self, acs_vec: Vec<Replica>){
+        self.mult_state.output_layer.acs_output.extend(acs_vec.clone());
+        self.verify_mpc_termination().await;
+    }
+
+    pub async fn verify_mpc_termination(&mut self){
+        if self.mult_state.output_layer.acs_output.is_empty(){
+            return;
         }
-        else {
-            log::info!("Party {} aborted the protocol", sender);
-            self.mult_state.output_layer.num_parties_aborted +=1;
-            if self.mult_state.output_layer.num_parties_aborted == self.num_faults+1{
-                log::error!("t+1 parties aborted the protocol, aborting the protocol");
+        else{
+
+            let mut output_hash_set = HashSet::new();
+            let mut successful_parties = 0;
+            let mut aborted_parties = 0;
+            let acs_vec = self.mult_state.output_layer.acs_output.clone();
+            
+            for party in acs_vec{
+                if self.mult_state.output_layer.broadcasted_masked_outputs.contains_key(&party){
+                    let output = self.mult_state.output_layer.broadcasted_masked_outputs.get(&party).unwrap().clone();
+                    let output_hash = do_hash(&output);
+                    output_hash_set.insert(output_hash);
+
+                    if output[0] == 1u8{
+                        successful_parties += 1;
+                    }
+                    else{
+                        aborted_parties += 1;
+                    }
+                }
+            }
+
+            if successful_parties >= self.num_faults +1{
+                log::info!("MPC terminated successfully, t+1 parties have reconstructed the output");
+                log::info!("Reconstructing random mask using AVSS and public reconstruction");
+            }
+            if aborted_parties >= self.num_faults +1{
+                log::error!("MPC terminated with Abort, t+1 parties have aborted the protocol");
                 return;
             }
         }
