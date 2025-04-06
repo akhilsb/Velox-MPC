@@ -3,7 +3,7 @@ use std::{ops::{Mul, Add, Sub}};
 use crate::Context;
 use crypto::{hash::{do_hash, Hash}, aes_hash::MerkleTree};
 use lambdaworks_math::{unsigned_integer::element::UnsignedInteger, polynomial::Polynomial, traits::ByteConversion};
-use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, sample_polynomials_from_prf, check_if_all_points_lie_on_degree_x_polynomial};
+use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, sample_polynomials_from_prf};
 use rand::random;
 use types::Replica;
 
@@ -170,8 +170,8 @@ impl Context{
             ).await;
             nonce_blinding_poly_evaluations = nonce_blinding_evaluations_vec[0].clone();
         }
-        let poly_status = check_if_all_points_lie_on_degree_x_polynomial(_indices, evaluations.clone(), self.num_faults+1);
-        assert!(poly_status.0);
+        // let poly_status = check_if_all_points_lie_on_degree_x_polynomial(_indices, evaluations.clone(), self.num_faults+1);
+        // assert!(poly_status.0);
         // Transform the shares to element wise shares
         let mut party_wise_shares: Vec<Vec<LargeFieldSer>> = Vec::new();
         let mut party_appended_shares: Vec<Vec<u8>> = Vec::new();

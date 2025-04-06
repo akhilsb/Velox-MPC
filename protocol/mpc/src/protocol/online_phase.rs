@@ -1,12 +1,70 @@
-use crate::Context;
+use lambdaworks_math::{traits::ByteConversion, polynomial::Polynomial};
+use protocol::{LargeFieldSer, LargeField};
+use types::Replica;
+
+use crate::{Context, msg::ProtMsg};
 
 impl Context{
     // This function will be used to run the online phase of the protocol
-    pub fn run_online_phase(&mut self) -> Result<(), String> {
-        // Here we will implement the logic for the online phase of the protocol
-        // This will involve sending and receiving shares, reconstructing values, etc.
-        
-        // For now, just return Ok to indicate success
-        Ok(())
+    pub async fn run_online_phase(&mut self) {
+        // Take two random sharings, and multiply them using a random double sharing
+        let a_share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
+        let b_share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
+
+        let shares_recon = vec![a_share.clone(), b_share.clone()];
+
+        let a_share_vec = vec![vec![a_share]];
+        let b_share_vec = vec![vec![b_share]];
+
+        self.choose_multiplication_protocol(a_share_vec, b_share_vec, 1).await;
+        self.reconstruct_rand_sharings(shares_recon, 1).await;
+    }
+
+    pub async fn handle_mult_term_tmp(&mut self, share: LargeField){
+        self.reconstruct_rand_sharings(vec![share], 2).await;
+    }
+
+    pub async fn reconstruct_rand_sharings(&mut self, shares: Vec<LargeField>, index: usize){
+        // Reconstruct the output
+        let output_masks_ser = shares.iter()
+            .map(|x| x.to_bytes_be())
+            .collect::<Vec<LargeFieldSer>>();
+
+        self.broadcast(ProtMsg::ReconstructMultSharings(output_masks_ser, index)).await;
+        // Save random masks for public recontruction after the output
+    }
+
+    pub async fn handle_reconstruct_mult_sharings(&mut self, shares: Vec<LargeFieldSer>, index: usize, sender: Replica){
+        // Save shares from this sender
+        if self.tmp_mult_state.contains_key(&index){
+            let index_state = self.tmp_mult_state.get_mut(&index).unwrap();
+            index_state.0.push(Self::get_share_evaluation_point(sender, self.use_fft, self.roots_of_unity.clone()));
+            for i in 0..index_state.1.len(){
+                index_state.1[i].push(LargeField::from_bytes_be(&shares[i]).unwrap());
+            }
+            if index_state.0.len() == self.num_faults+1{
+                // Reconstruct these points
+                let evaluation_indices = index_state.0.clone();
+                let evaluations = index_state.1.clone();
+                let mult_value: LargeField = evaluations.iter().map(|evals|{
+                    let poly = Polynomial::interpolate(
+                        &evaluation_indices,
+                        evals
+                    ).unwrap();
+                    return poly.evaluate(&LargeField::zero());
+                }).fold(LargeField::one(), |acc, x| acc*x);
+                log::info!("Reconstructed multiplication value at index {}: {:?}", index, mult_value);
+            }
+        }
+        else{
+            let mut indices_vec = Vec::new();
+            indices_vec.push(Self::get_share_evaluation_point(sender, self.use_fft, self.roots_of_unity.clone()));
+
+            let mut shares_vec = vec![vec![];shares.len()];
+            for i in 0..shares.len(){
+                shares_vec[i].push(LargeField::from_bytes_be(&shares[i]).unwrap());
+            }
+            self.tmp_mult_state.insert(index, (indices_vec, shares_vec));
+        }
     }
 }

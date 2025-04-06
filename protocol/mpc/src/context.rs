@@ -89,6 +89,8 @@ pub struct Context {
     // Random masks for the output
     pub output_mask_state: RandomOutputMaskStruct,
 
+    pub tmp_mult_state: HashMap<usize, (Vec<LargeField>,Vec<Vec<LargeField>>)>,
+
     /// Fast fourier transforms utility
     pub use_fft: bool,
     pub roots_of_unity: Vec<LargeField>,
@@ -252,6 +254,7 @@ impl Context {
                 mult_state: MultState::new(),
                 verf_state: VerificationState::new(),
                 output_mask_state: RandomOutputMaskStruct::new(),
+                tmp_mult_state: HashMap::default(),
 
                 use_fft: use_fft,
                 roots_of_unity: acss_ab::Context::gen_roots_of_unity(config.num_nodes),

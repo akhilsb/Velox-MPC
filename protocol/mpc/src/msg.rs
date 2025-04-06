@@ -18,5 +18,8 @@ pub enum ProtMsg{
     ReconstructVerfOutputSharing(LargeFieldSer, LargeFieldSer, LargeFieldSer),
     ReconstructMaskedOutput(Vec<LargeFieldSer>),
 
-    ReconstructOutputMasks(Replica, Vec<LargeFieldSer>, LargeFieldSer, LargeFieldSer)
+    ReconstructOutputMasks(Replica, Vec<LargeFieldSer>, LargeFieldSer, LargeFieldSer),
+
+    // Temporary for testing
+    ReconstructMultSharings(Vec<LargeFieldSer>, usize),
 }

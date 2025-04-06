@@ -1,7 +1,7 @@
 use crate::Context;
 use crypto::{hash::{do_hash, Hash}};
 use lambdaworks_math::{unsigned_integer::element::UnsignedInteger};
-use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, sample_polynomials_from_prf};
+use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, sample_polynomials_from_prf, check_if_all_points_lie_on_degree_x_polynomial};
 use rand::random;
 use types::Replica;
 
@@ -15,6 +15,7 @@ impl Context{
         let tot_sharings = secrets.len();
 
         let mut handles = Vec::new();
+        let mut _indices;
         let mut evaluations;
         let nonce_evaluations;
         let mut coefficients;
@@ -42,7 +43,11 @@ impl Context{
 
             evaluations = Vec::new();
             coefficients = Vec::new();
-                    
+            _indices = Vec::new();
+            for party in 0..self.num_nodes{
+                _indices.push(LargeField::new(UnsignedInteger::from((party+1) as u64)));
+            }
+
             for handle in handles{
                 let (
                     evaluations_batch, 
@@ -75,7 +80,7 @@ impl Context{
                 let handle = tokio::spawn(
                     generate_evaluation_points_fft(
                         secrets,
-                        2*self.num_faults,
+                        2*self.num_faults-1,
                         self.num_nodes
                     )
                 );
@@ -83,6 +88,8 @@ impl Context{
             }
             evaluations = Vec::new();
             coefficients = Vec::new();
+            _indices = self.roots_of_unity.clone();
+
             for handle in handles{
                 let (
                     evaluations_batch, 
@@ -96,12 +103,13 @@ impl Context{
                 vec![LargeField::new(UnsignedInteger{
                     limbs: random()
                 })],
-                2*self.num_faults,
+                2*self.num_faults-1,
                 self.num_nodes,
             ).await;
             nonce_evaluations = nonce_evaluations_ret[0].clone();
         }
-
+        let poly_status = check_if_all_points_lie_on_degree_x_polynomial(_indices, evaluations.clone(), 2*self.num_faults+1);
+        assert!(poly_status.0);
         // Transform the shares to element wise shares
         let mut party_wise_shares: Vec<Vec<LargeFieldSer>> = Vec::new();
         let mut party_appended_shares: Vec<Vec<u8>> = Vec::new();

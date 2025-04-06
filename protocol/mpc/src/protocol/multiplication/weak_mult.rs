@@ -31,7 +31,7 @@ impl Context{
             return;
         }
         let mult_state = self.mult_state.depth_share_map.get(&depth).unwrap();
-        if mult_state.recv_hash_set.len() == self.num_nodes-self.num_faults && mult_state.recv_hash_set.len() == 1{
+        if mult_state.recv_hash_msgs.len() == self.num_nodes-self.num_faults && mult_state.recv_hash_set.len() == 1{
             log::info!("Received 2t+1 Hashes for multiplication at depth {} with Hash {:?}, computing sharings of output gate",depth, mult_state.recv_hash_set);            
         }
         else{
@@ -80,7 +80,11 @@ impl Context{
             else if depth > self.max_depth{
                 // TODO: Initiate next depth multiplication here. 
                 self.handle_ex_mult_termination(depth, shares_next_depth).await;
-            } 
+            }
+            else{
+                // Temporary
+                self.handle_mult_term_tmp(shares_next_depth[0]).await;
+            }
         }
         else{
             log::error!("Secrets less than number of random sharings used, this should not happen. Abandoning the protocol at depth {}",depth);
@@ -144,7 +148,7 @@ impl Context{
             roots_of_unity.get(party).clone().unwrap().clone()
         }
         else{
-            LargeField::from(party as u64)
+            LargeField::from((party+1) as u64)
         }
     }
 }
