@@ -1,6 +1,6 @@
 [x] - Random sharings reconstruction and AVSS mask reconstruction
 [x] - Quadratic Multiplication protocol
-[ ] - Linear Multiplication protocol
+[x] - Linear Multiplication protocol
 [ ] - Delinearization protocol
 [ ] - ExCompr protocol
 [ ] - Randomization protocol

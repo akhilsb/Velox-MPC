@@ -8,20 +8,30 @@ impl Context{
     // This function will be used to run the online phase of the protocol
     pub async fn run_online_phase(&mut self) {
         // Take two random sharings, and multiply them using a random double sharing
-        let a_share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
-        let b_share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
+        let mut a_shares = Vec::new();
+        let mut b_shares = Vec::new();
 
-        let shares_recon = vec![a_share.clone(), b_share.clone()];
+        let mut combined_shares = vec![vec![];2*self.num_faults+2];
 
-        let a_share_vec = vec![vec![a_share]];
-        let b_share_vec = vec![vec![b_share]];
+        for i in 0..2*self.num_faults+2{
+            let share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
+            a_shares.push(vec![share.clone()]);
+            combined_shares[i].push(share);
+        }
+        for i in 0..2*self.num_faults+2{
+            let share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
+            b_shares.push(vec![share.clone()]);
+            combined_shares[i].push(share);
+        }
 
-        self.choose_multiplication_protocol(a_share_vec, b_share_vec, 1).await;
-        self.reconstruct_rand_sharings(shares_recon, 1).await;
+        self.choose_multiplication_protocol(a_shares, b_shares, 1).await;
+        for (index,coup) in combined_shares.into_iter().enumerate(){
+            self.reconstruct_rand_sharings(coup, index).await;
+        }
     }
 
-    pub async fn handle_mult_term_tmp(&mut self, share: LargeField){
-        self.reconstruct_rand_sharings(vec![share], 2).await;
+    pub async fn handle_mult_term_tmp(&mut self, shares: Vec<LargeField>){
+        self.reconstruct_rand_sharings(shares, 4).await;
     }
 
     pub async fn reconstruct_rand_sharings(&mut self, shares: Vec<LargeField>, index: usize){
@@ -46,14 +56,27 @@ impl Context{
                 // Reconstruct these points
                 let evaluation_indices = index_state.0.clone();
                 let evaluations = index_state.1.clone();
-                let mult_value: LargeField = evaluations.iter().map(|evals|{
-                    let poly = Polynomial::interpolate(
-                        &evaluation_indices,
-                        evals
-                    ).unwrap();
-                    return poly.evaluate(&LargeField::zero());
-                }).fold(LargeField::one(), |acc, x| acc*x);
-                log::info!("Reconstructed multiplication value at index {}: {:?}", index, mult_value);
+                if index == 4{
+                    // Reconstructed values
+                    let mult_values: Vec<LargeField> = evaluations.iter().map(|evals|{
+                        let poly = Polynomial::interpolate(
+                            &evaluation_indices,
+                            evals
+                        ).unwrap();
+                        return poly.evaluate(&LargeField::zero());
+                    }).collect();
+                    log::info!("Reconstructed multiplication value at index {}: {:?}", index, mult_values);
+                }
+                else{
+                    let mult_value: LargeField = evaluations.iter().map(|evals|{
+                        let poly = Polynomial::interpolate(
+                            &evaluation_indices,
+                            evals
+                        ).unwrap();
+                        return poly.evaluate(&LargeField::zero());
+                    }).fold(LargeField::one(), |acc, x| acc*x);
+                    log::info!("Reconstructed multiplication value at index {}: {:?}", index, mult_value);
+                }
             }
         }
         else{
