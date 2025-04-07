@@ -19,6 +19,7 @@ pub struct SingleDepthState{
     pub util_rand_sharings: Vec<LargeField>,
     
     pub two_levels: bool,
+    pub padding_shares: usize, 
     // TODO: replace these with mutexes
     pub recv_share_count_l1: usize,
     pub recv_share_count_l2: usize,
@@ -39,6 +40,8 @@ impl SingleDepthState{
             util_rand_sharings: Vec::new(),
 
             two_levels,
+            padding_shares: 0,
+
             recv_share_count_l1: 0,
             recv_share_count_l2: 0,
 

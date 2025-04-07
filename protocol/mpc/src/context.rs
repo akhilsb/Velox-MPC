@@ -101,6 +101,7 @@ pub struct Context {
 
     pub delinearization_depth: usize, 
     pub compression_factor: usize,
+    pub multiplication_switch_threshold: usize,
 }
 
 impl Context {
@@ -264,6 +265,7 @@ impl Context {
 
                 delinearization_depth: 5000, 
                 compression_factor: 10,
+                multiplication_switch_threshold: 0
             };
 
             // Populate secret keys from config

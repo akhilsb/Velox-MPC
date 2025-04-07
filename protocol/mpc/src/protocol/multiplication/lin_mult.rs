@@ -12,9 +12,20 @@ use types::{Replica, WrapperMsg};
 use crate::{msg::ProtMsg};
 
 impl Context{
-    pub async fn linear_multiplication_prot(&mut self, a_vec_shares: Vec<Vec<LargeField>>, b_vec_shares: Vec<Vec<LargeField>>, depth: usize) {
+    pub async fn linear_multiplication_prot(&mut self, mut a_vec_shares: Vec<Vec<LargeField>>, mut b_vec_shares: Vec<Vec<LargeField>>, depth: usize) {
+        // Pad shares until they become a multiple of 2t+1
+        let multiple_of_val = 2*self.num_faults+1;
+        let padding_length = multiple_of_val - (a_vec_shares.len()%multiple_of_val);
+        if a_vec_shares.len()%multiple_of_val != 0{
+            // Pad the shares until it becomes a multiple of 2t+1
+            for _ in 0..padding_length{
+                a_vec_shares.push(vec![LargeField::zero()]);
+                b_vec_shares.push(vec![LargeField::zero()]);
+            }
+        }
+        let tot_groups = a_vec_shares.len() / (2 * self.num_faults + 1);
+        // Use linear multiplication protocol here
         let tot_shares = a_vec_shares.len();
-        let tot_groups = tot_shares / (2 * self.num_faults + 1);
         
         let depth_state;
         if !self.mult_state.depth_share_map.contains_key(&depth){
@@ -24,6 +35,8 @@ impl Context{
             depth_state = self.mult_state.depth_share_map.get_mut(&depth).unwrap();
         }
 
+        depth_state.padding_shares = padding_length;
+        
         // Get random sharings
         let mut r_sharings = Vec::with_capacity(tot_shares);
         for _ in 0..tot_shares {
@@ -41,7 +54,7 @@ impl Context{
         }
 
         let mut o_sharings = Vec::with_capacity(tot_shares/2);
-        for _ in 0..tot_shares/2 {
+        for _ in 0..(tot_groups*(self.num_faults+1)) {
             // Check if there are enough random shares for zero multiplication
             if self.rand_sharings_state.rand_2t_sharings_mult.len() > 0 {
                 o_sharings.push(self.rand_sharings_state.rand_2t_sharings_mult.pop_front().unwrap());
@@ -81,7 +94,6 @@ impl Context{
             o_shares_grouped = o_sharings.chunks(self.num_faults+1).map(|x|x.to_vec()).collect();
         }
         
-        log::info!("a_vec_shares_grouped len: {} vec: {:?}", a_vec_shares_grouped.len(), a_vec_shares_grouped);
         let total_chunks = a_vec_shares_grouped.len();
 
         // Check that there are the correct number of groups

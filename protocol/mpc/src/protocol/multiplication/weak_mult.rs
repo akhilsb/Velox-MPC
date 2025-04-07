@@ -8,8 +8,16 @@ use crate::{Context};
 use super::mult_state::SingleDepthState;
 
 impl Context{
-    pub async fn choose_multiplication_protocol(&mut self, a_shares: Vec<Vec<LargeField>>, b_shares: Vec<Vec<LargeField>>, depth: usize){
-        self.linear_multiplication_prot(a_shares, b_shares, depth).await;
+    pub async fn choose_multiplication_protocol(&mut self,a_shares: Vec<Vec<LargeField>>, b_shares: Vec<Vec<LargeField>>, depth: usize){
+        // Padding necessary to make sure each group has the same number of elements
+        let num_multiplications = a_shares.len();
+        if num_multiplications > self.multiplication_switch_threshold{
+            self.linear_multiplication_prot(a_shares, b_shares, depth).await;
+        }
+        else{
+            // Use quadratic multiplication protocol here
+            self.quadratic_multiplication_prot(a_shares, b_shares, depth).await;
+        }
     }
 
     pub async fn handle_hash_broadcast(&mut self, hash: Hash, depth: usize, lin_or_quad: bool, sender: Replica){
@@ -52,12 +60,16 @@ impl Context{
         if mult_state.util_rand_sharings.len() <= reconstructed_blinded_secrets.len() && reconstructed_blinded_secrets.len() > 0{
             log::info!("Moving on to depth {}", depth + 1);
             // Par iter from rayon not needed here because we are not doing heavy computation
-            let shares_next_depth: Vec<LargeField> 
+            let mut shares_next_depth: Vec<LargeField> 
                     = mult_state.util_rand_sharings.clone().into_iter()
                         .zip(reconstructed_blinded_secrets.into_iter())
                             .map(|(sharing, recon_secret)|recon_secret-sharing)
                                 .collect();
             
+            // Trim the last k shares for padding
+            for _i in 0..mult_state.padding_shares{
+                shares_next_depth.pop();
+            }
             log::info!("Shares for next depth: {}", shares_next_depth.len());
             self.verf_state.add_mult_output_shares(depth, shares_next_depth.clone()); // Store the shares for the next depth
             // self.choose_multiplication_protocol(a_shares, b_shares, depth)

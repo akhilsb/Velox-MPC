@@ -11,14 +11,15 @@ impl Context{
         let mut a_shares = Vec::new();
         let mut b_shares = Vec::new();
 
-        let mut combined_shares = vec![vec![];2*self.num_faults+2];
+        let tot_sharings = 2*self.num_faults+2;
+        let mut combined_shares = vec![vec![];tot_sharings];
 
-        for i in 0..2*self.num_faults+2{
+        for i in 0..tot_sharings{
             let share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
             a_shares.push(vec![share.clone()]);
             combined_shares[i].push(share);
         }
-        for i in 0..2*self.num_faults+2{
+        for i in 0..tot_sharings{
             let share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
             b_shares.push(vec![share.clone()]);
             combined_shares[i].push(share);
@@ -31,7 +32,7 @@ impl Context{
     }
 
     pub async fn handle_mult_term_tmp(&mut self, shares: Vec<LargeField>){
-        self.reconstruct_rand_sharings(shares, 4).await;
+        self.reconstruct_rand_sharings(shares, 5).await;
     }
 
     pub async fn reconstruct_rand_sharings(&mut self, shares: Vec<LargeField>, index: usize){
@@ -49,6 +50,7 @@ impl Context{
         if self.tmp_mult_state.contains_key(&index){
             let index_state = self.tmp_mult_state.get_mut(&index).unwrap();
             index_state.0.push(Self::get_share_evaluation_point(sender, self.use_fft, self.roots_of_unity.clone()));
+            log::info!("Adding share from sender {} to index {}: {:?}", sender, index, shares);
             for i in 0..index_state.1.len(){
                 index_state.1[i].push(LargeField::from_bytes_be(&shares[i]).unwrap());
             }
@@ -56,7 +58,7 @@ impl Context{
                 // Reconstruct these points
                 let evaluation_indices = index_state.0.clone();
                 let evaluations = index_state.1.clone();
-                if index == 4{
+                if index == 5{
                     // Reconstructed values
                     let mult_values: Vec<LargeField> = evaluations.iter().map(|evals|{
                         let poly = Polynomial::interpolate(
