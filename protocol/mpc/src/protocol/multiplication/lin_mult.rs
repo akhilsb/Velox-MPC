@@ -15,13 +15,17 @@ impl Context{
     pub async fn linear_multiplication_prot(&mut self, mut a_vec_shares: Vec<Vec<LargeField>>, mut b_vec_shares: Vec<Vec<LargeField>>, depth: usize) {
         // Pad shares until they become a multiple of 2t+1
         let multiple_of_val = 2*self.num_faults+1;
-        let padding_length = multiple_of_val - (a_vec_shares.len()%multiple_of_val);
+        let mut padding_length = multiple_of_val - (a_vec_shares.len()%multiple_of_val);
+        if (a_vec_shares.len()%multiple_of_val) == 0{
+            padding_length =0;
+        }
+        // Pad the shares until it becomes a multiple of 2t+1
+        for _ in 0..padding_length{
+            a_vec_shares.push(vec![LargeField::zero()]);
+            b_vec_shares.push(vec![LargeField::zero()]);
+        }
         if a_vec_shares.len()%multiple_of_val != 0{
-            // Pad the shares until it becomes a multiple of 2t+1
-            for _ in 0..padding_length{
-                a_vec_shares.push(vec![LargeField::zero()]);
-                b_vec_shares.push(vec![LargeField::zero()]);
-            }
+            
         }
         let tot_groups = a_vec_shares.len() / (2 * self.num_faults + 1);
         // Use linear multiplication protocol here
@@ -66,8 +70,9 @@ impl Context{
 
         // Share inputs for later verification
         if depth <= self.max_depth {
-            let first_a_shares = a_vec_shares.clone().into_iter().map(|x| x[0]).collect();
-            let first_b_shares = b_vec_shares.clone().into_iter().map(|x| x[0]).collect();
+            let first_a_shares: Vec<LargeField> = a_vec_shares.clone().into_iter().map(|x| x[0]).collect();
+            let first_b_shares: Vec<LargeField> = b_vec_shares.clone().into_iter().map(|x| x[0]).collect();
+            log::info!("Adding shares to verification state with a:{} b:{} at depth {}", first_a_shares.len(), first_b_shares.len(), depth);
             self.verf_state.add_mult_inputs(depth, first_a_shares, first_b_shares);
         }
             

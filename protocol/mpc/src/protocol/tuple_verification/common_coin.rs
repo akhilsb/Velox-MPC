@@ -13,6 +13,7 @@ impl Context{
         let prot_msg = ProtMsg::ReconstructCoin(coin_share.to_bytes_be(), depth);
 
         self.broadcast(prot_msg).await;
+        //self.handle_coin_toss_deserialization().await;
     }
 
     pub async fn handle_common_coin_msg(&mut self, lf_share: LargeFieldSer, sender: usize, depth: usize){
@@ -35,10 +36,16 @@ impl Context{
                 &ex_compr_state.coin_toss_shares.1
             ).unwrap();
             let coin_value = polynomial.evaluate(&LargeField::zero());
-            ex_compr_state.coin_output = Some(coin_value);
-            // Trigger subsequent phase here. 
-            log::info!("Reconstructed common coin at depth {}: {:?}", depth, ex_compr_state.coin_output);
-            self.check_level_termination(depth).await;
+            ex_compr_state.coin_output = Some(coin_value.clone());
+            if depth == self.delinearization_depth{
+                log::info!("Reconstructed common coin at delinearization depth {}: {:?}", depth, ex_compr_state.coin_output);
+                self.handle_coin_toss_deserialization().await;
+            }
+            else{
+                // Trigger subsequent phase here. 
+                log::info!("Reconstructed common coin at depth {}: {:?}", depth, ex_compr_state.coin_output);
+                self.check_level_termination(depth).await;
+            }
         }
 
     }

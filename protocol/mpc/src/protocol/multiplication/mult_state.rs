@@ -25,7 +25,9 @@ pub struct SingleDepthState{
     pub recv_share_count_l2: usize,
 
     pub recv_hash_set: HashSet<Hash>,
-    pub recv_hash_msgs: Vec<Replica>
+    pub recv_hash_msgs: Vec<Replica>,
+
+    pub depth_terminated: bool,
 }
 
 impl SingleDepthState{
@@ -46,7 +48,9 @@ impl SingleDepthState{
             recv_share_count_l2: 0,
 
             recv_hash_set: HashSet::new(),
-            recv_hash_msgs: Vec::new()
+            recv_hash_msgs: Vec::new(),
+
+            depth_terminated: false,
         }
     }
 }

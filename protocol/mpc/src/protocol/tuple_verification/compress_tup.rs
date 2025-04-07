@@ -15,7 +15,7 @@ impl Context{
     pub async fn start_compression_level(&mut self, x_vector: Vec<LargeField>, y_vector: Vec<LargeField>, agg_val: LargeField, depth: usize){
         // Split into chunks for compression
         let elements_per_chunk;
-        if x_vector.len() <= self.compression_factor{
+        if x_vector.len() >= self.compression_factor{
             // After reaching a threshold level, 
             elements_per_chunk = x_vector.len()/self.compression_factor;
         }
@@ -60,6 +60,18 @@ impl Context{
         let mut y_vectors = ex_compr_state.y_sharings.clone(); // This should be a vector of vectors of shares for y
         let mut mult_vec = ex_compr_state.mult_sharings.clone(); // This should be a vector of shares for the multiplication results
 
+        if ex_compr_state.rem_mult_tup.is_none() {
+            log::error!("Ex_compr: No remaining multiplication tuple found at depth {}, returning",depth);
+            return; // Handle error: no remaining multiplication tuple
+        }
+        let (rem_x, rem_y, rem_mult) = ex_compr_state.rem_mult_tup.clone().unwrap();
+        
+        let sum_mult: LargeField = mult_vec.clone().into_iter().sum();
+        
+        x_vectors.push(rem_x);
+        y_vectors.push(rem_y);
+        mult_vec.push(rem_mult-sum_mult);
+
         // If this round is the last round, mask the output with a random sharing to ensure adversary does not know any thing about the inputs or gates
         if x_vectors[0].len() == 1{
             log::info!("Ex_compr: Last round of compression, adding a random mask to the tuples list");
@@ -86,15 +98,15 @@ impl Context{
         let (first_set_eval_points, second_set_eval_points) = 
             Self::gen_evaluation_points_ex_compr(x_vectors.len());
         
-        let mut x_polynomial_evaluations_vector = vec![vec![LargeField::zero();x_vectors.len()];x_vectors[0].len()]; // This will hold the polynomial evaluations for each x vector
-        let mut y_polynomial_evaluations_vector = vec![vec![LargeField::zero();x_vectors.len()];x_vectors[0].len()]; // This will hold the polynomial evaluations for each x vector
+        log::info!("Computing Ex_compr for depth {} with polynomial of degree x: {}, y: {}, inner_tup_dimension: {}",depth, x_vectors.len(), y_vectors.len(), x_vectors[0].len());
+        let mut x_polynomial_evaluations_vector = vec![vec![];x_vectors[0].len()]; // This will hold the polynomial evaluations for each x vector
+        let mut y_polynomial_evaluations_vector = vec![vec![];x_vectors[0].len()]; // This will hold the polynomial evaluations for each x vector
         for (x_vec, y_vec) in x_vectors.iter().zip(y_vectors.iter()){
             for ((outer_index,x_point),y_point) in x_vec.iter().enumerate().zip(y_vec.iter()){
                 x_polynomial_evaluations_vector[outer_index].push(x_point.clone());
                 y_polynomial_evaluations_vector[outer_index].push(y_point.clone());
             } 
         }
-
         let x_polynomials: Vec<Polynomial<LargeField>> = x_polynomial_evaluations_vector.into_par_iter().map(|evaluations| {
             return Polynomial::interpolate(&first_set_eval_points, &evaluations).unwrap();
         }).collect();
@@ -142,6 +154,7 @@ impl Context{
                 log::error!("Ex_compr: Mult result is empty for depth {}, returning",depth);
                 return; // Handle error: multiplication result is empty
             }
+            log::info!("Multiplication terminated at delinearization depth {}, storing result", depth);
             let rand_mult_sharing = mult_result[0].clone();
             self.verf_state.random_mask.2 = Some(rand_mult_sharing);
         }
@@ -205,7 +218,7 @@ impl Context{
     pub async fn check_level_termination(&mut self, depth: usize) {
         let ex_compr_state = self.verf_state.ex_compr_state.get_mut(&depth).unwrap();
         if ex_compr_state.h_poly.is_none() || ex_compr_state.x_polys.is_none() || ex_compr_state.y_polys.is_none() || ex_compr_state.coin_output.is_none() {
-            log::warn!("handle_coin_termination: h_poly is None at depth {}. Cannot proceed with coin termination.", depth);
+            log::warn!("handle_coin_termination: h_poly:{:?}, x_poly {:?}. y_poly {:?}, common coin {:?}, Cannot proceed with coin termination at depth {}",ex_compr_state.h_poly,ex_compr_state.x_polys,ex_compr_state.y_polys,ex_compr_state.coin_output, depth);
             return;
         }
         let h_polynomial = ex_compr_state.h_poly.as_ref().unwrap();
@@ -219,11 +232,10 @@ impl Context{
         if x_points.len() == 1{
             // Last level of compression, reconstruct sharings here
             log::info!("Last level of compression at depth {} with size of vectors {}, proceeding to reconstruct sharings",depth,x_points.len());
-
         }
         
-        log::info!("Terminated compression at depth {} with size of vectors {}, proceeding to next depth",depth,x_points.len());
-        self.start_compression_level(x_points, y_points, h_point, depth+2).await;
+        log::info!("Terminated compression at depth {} with size of xvector {}, yvector {} hpoint {}, proceeding to next depth",depth,x_points.len(),y_points.len(),h_point);
+        //self.start_compression_level(x_points, y_points, h_point, depth+2).await;
     }
 
     pub fn gen_evaluation_points_ex_compr(poly_def_points_count: usize)-> (Vec<LargeField>, Vec<LargeField>) {

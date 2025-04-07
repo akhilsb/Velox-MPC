@@ -37,7 +37,10 @@ impl Context{
         if !self.mult_state.depth_share_map.contains_key(&depth){
             return;
         }
-        let mult_state = self.mult_state.depth_share_map.get(&depth).unwrap();
+        let mult_state = self.mult_state.depth_share_map.get_mut(&depth).unwrap();
+        if mult_state.depth_terminated{
+            return;
+        }
         if mult_state.recv_hash_msgs.len() == self.num_nodes-self.num_faults && mult_state.recv_hash_set.len() == 1{
             log::info!("Received 2t+1 Hashes for multiplication at depth {} with Hash {:?}, computing sharings of output gate",depth, mult_state.recv_hash_set);            
         }
@@ -75,6 +78,7 @@ impl Context{
             self.verf_state.add_mult_output_shares(depth, shares_next_depth.clone()); // Store the shares for the next depth
             // self.choose_multiplication_protocol(a_shares, b_shares, depth)
             // How to handle next depth wires?
+            mult_state.depth_terminated = true;
             if depth == self.max_depth{
                 // Trigger output reconstruction
                 // Add output wires to the multiplication state as well. 
@@ -88,7 +92,7 @@ impl Context{
                 );
                 log::info!("Starting verification of multiplications");
                 // Start verification from here
-                //self.delinearize_mult_tuples().await;
+                self.delinearize_mult_tuples().await;
             }
             else if depth > self.max_depth{
                 // TODO: Initiate next depth multiplication here. 

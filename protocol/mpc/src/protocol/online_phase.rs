@@ -11,7 +11,7 @@ impl Context{
         let mut a_shares = Vec::new();
         let mut b_shares = Vec::new();
 
-        let tot_sharings = 2*self.num_faults+2;
+        let tot_sharings = (2*self.num_faults+1)*50;
         let mut combined_shares = vec![vec![];tot_sharings];
 
         for i in 0..tot_sharings{
@@ -26,9 +26,9 @@ impl Context{
         }
 
         self.choose_multiplication_protocol(a_shares, b_shares, 1).await;
-        for (index,coup) in combined_shares.into_iter().enumerate(){
-            self.reconstruct_rand_sharings(coup, index).await;
-        }
+        // for (index,coup) in combined_shares.into_iter().enumerate(){
+        //     self.reconstruct_rand_sharings(coup, index).await;
+        // }
     }
 
     pub async fn handle_mult_term_tmp(&mut self, shares: Vec<LargeField>){
