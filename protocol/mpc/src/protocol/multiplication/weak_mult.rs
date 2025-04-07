@@ -12,11 +12,11 @@ impl Context{
         // Padding necessary to make sure each group has the same number of elements
         let num_multiplications = a_shares.len();
         if num_multiplications > self.multiplication_switch_threshold{
-            self.linear_multiplication_prot(a_shares, b_shares, depth).await;
+            Box::pin(self.linear_multiplication_prot(a_shares, b_shares, depth)).await;
         }
         else{
             // Use quadratic multiplication protocol here
-            self.quadratic_multiplication_prot(a_shares, b_shares, depth).await;
+            Box::pin(self.quadratic_multiplication_prot(a_shares, b_shares, depth)).await;
         }
     }
 
@@ -57,7 +57,8 @@ impl Context{
         // Subtract random sharings
         log::info!("Subtracting random sharings with length {} from reconstructed secrets {} at depth {}",mult_state.util_rand_sharings.len(), reconstructed_blinded_secrets.len(), depth);
 
-        if mult_state.util_rand_sharings.len() <= reconstructed_blinded_secrets.len() && reconstructed_blinded_secrets.len() > 0{
+        // Weird bugs occurring in this phase. 
+        if mult_state.util_rand_sharings.len() == reconstructed_blinded_secrets.len() && reconstructed_blinded_secrets.len() > 0{
             log::info!("Moving on to depth {}", depth + 1);
             // Par iter from rayon not needed here because we are not doing heavy computation
             let mut shares_next_depth: Vec<LargeField> 

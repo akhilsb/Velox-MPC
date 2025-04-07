@@ -36,7 +36,7 @@ impl Context{
         }
 
         depth_state.padding_shares = padding_length;
-        
+
         // Get random sharings
         let mut r_sharings = Vec::with_capacity(tot_shares);
         for _ in 0..tot_shares {
@@ -157,6 +157,7 @@ impl Context{
 
             self.add_cancel_handler(cancel_handler);
         }
+        self.verify_depth_mult_termination(depth).await;
     }
 
     pub async fn handle_l1_message(&mut self, ser_shares: Vec<u8>, depth: usize, sender: usize) {
@@ -212,7 +213,7 @@ impl Context{
             log::info!("L1 reconstruction successful, sending L2 shares to all parties");
             self.broadcast(ProtMsg::SharesL2(ser_shares.unwrap(), depth)).await;
         }
-
+        self.verify_depth_mult_termination(depth).await;
     }
 
     pub async fn handle_l2_message(&mut self, group_shares: Vec<u8>, depth: usize, sender: Replica){
