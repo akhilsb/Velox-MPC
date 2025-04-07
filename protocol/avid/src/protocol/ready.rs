@@ -55,7 +55,7 @@ impl Context {
             let ready_msg = ProtMsg::Ready(avid_ready_msg, instance_id);
             self.broadcast(ready_msg).await;
         }
-        else if size == self.num_nodes - self.num_faults {
+        else if size == self.num_nodes - self.num_faults && !avid_context.terminated{
             log::info!("Received n-f READY messages for RBC Instance ID {}, terminating",instance_id);
             // Terminate protocol
             avid_context.terminated = true;

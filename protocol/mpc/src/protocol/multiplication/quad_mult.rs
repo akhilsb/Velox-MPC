@@ -7,7 +7,7 @@ use types::Replica;
 use crate::{Context, msg::ProtMsg};
 
 impl Context{
-    pub async fn quadratic_multiplication_prot(&mut self, a_shares: Vec<Vec<LargeField>>, b_shares: Vec<Vec<LargeField>>, depth: usize){
+    pub async fn init_quadratic_multiplication_prot(&mut self, a_shares: Vec<Vec<LargeField>>, b_shares: Vec<Vec<LargeField>>, depth: usize){
         log::info!("Starting quadratic multiplication protocol");
         if a_shares.len() != b_shares.len() {
             log::error!("Quadratic multiplication protocol failed: a and b shares length mismatch");
@@ -52,6 +52,7 @@ impl Context{
 
         let ser_shares = bincode::serialize(&mult_shares).unwrap();
         self.broadcast(ProtMsg::QuadShares(ser_shares, depth)).await;
+        self.verify_depth_mult_termination(depth).await;
     }
 
     pub async fn handle_quadratic_mult_shares(&mut self, depth: usize, shares: Vec<u8>, sender: Replica){
@@ -92,7 +93,7 @@ impl Context{
             }
             let hash = do_hash(&appended_msg);
             log::info!("Completed processing triples at depth {} with quadratic sharings, broadcasting hash {:?}", depth, hash);
-            self.broadcast(ProtMsg::HashZMsg(hash,depth,false)).await;
+            self.init_hash_broadcast(hash, depth).await;
             self.verify_depth_mult_termination(depth).await;
         }
     }

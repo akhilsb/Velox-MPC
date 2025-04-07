@@ -40,6 +40,7 @@ impl Context{
     }
 
     pub async fn handle_acss_term_msg(&mut self, instance: usize, sender: usize, shares: Option<Vec<LargeFieldSer>>){
+        log::info!("Received ACSS shares from sender {} for batch {}", sender, instance);
         if shares.is_none(){
             log::error!("Abort ACSS protocol of dealer {} and terminate MPC", sender);
             return;
@@ -61,10 +62,11 @@ impl Context{
         let shares_batches_map = self.rand_sharings_state.shares.get_mut(&sender).unwrap();
         shares_batches_map.insert(instance, shares_deser);
 
-        self.send_term_event_to_acs_channel(sender).await;
+        self.verify_sender_termination(sender).await;
     }
 
     pub async fn handle_sh2t_term_msg(&mut self, instance: usize, sender: usize, shares: Option<Vec<LargeFieldSer>>){
+        log::info!("Received Sh2t shares from sender {} for batch {}", sender, instance);
         if shares.is_none(){
             log::error!("Abort 2t-sharing protocol of dealer {} and terminate MPC", sender);
             return;
@@ -85,10 +87,10 @@ impl Context{
         let shares_batches_map = self.rand_sharings_state.sh2t_shares.get_mut(&sender).unwrap();
         shares_batches_map.insert(instance, shares_deser);
 
-        self.send_term_event_to_acs_channel(sender).await;
+        self.verify_sender_termination(sender).await;
     }
 
-    pub async fn send_term_event_to_acs_channel(&mut self, sender: usize){
+    pub async fn verify_sender_termination(&mut self, sender: usize){
         if !self.rand_sharings_state.shares.contains_key(&sender) || !self.rand_sharings_state.sh2t_shares.contains_key(&sender) || !self.output_mask_state.avss_shares.contains_key(&sender){
             log::debug!("ACSS, Sh2t, and AVSS not completed for sender {} for all batches", sender);
             return;
@@ -101,17 +103,17 @@ impl Context{
             log::info!("Batches info: {:?} {:?}", shares_batches_map.keys(),share_2t_batches_map.keys());
             self.rand_sharings_state.acss_completed_parties.insert(sender);
             let _status = self.acs_event_send.send(sender).await;
-            self.check_termination().await;
+            self.verify_termination().await;
         }
     }
 
     pub async fn handle_acs_output(&mut self, partyset: Vec<Replica>){
         self.rand_sharings_state.acs_output.extend(partyset);
         // Check if all parties have completed ACSS and 2t-sharing
-        self.check_termination().await;
+        self.verify_termination().await;
     }
 
-    pub async fn check_termination(&mut self){
+    pub async fn verify_termination(&mut self){
         log::info!("Checking termination for random sharings");
         if self.rand_sharings_state.rand_sharings_mult.len() > 0{
             // Sharings already generated, return back

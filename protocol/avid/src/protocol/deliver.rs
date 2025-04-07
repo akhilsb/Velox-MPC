@@ -21,7 +21,7 @@ impl Context{
         }
         
         let avid_inst_id = instance_id % self.threshold;
-        if avid_context.terminated && avid_state.len() == self.num_faults + 1{
+        if avid_context.terminated && avid_state.len() >= self.num_faults + 1 && avid_context.message == None{
             // Reconstruct and verify root
             // Reconstruct the entire Merkle tree
             let mut shards:Vec<Option<Vec<u8>>> = Vec::new();

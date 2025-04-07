@@ -12,7 +12,7 @@ use types::{Replica, WrapperMsg};
 use crate::{msg::ProtMsg};
 
 impl Context{
-    pub async fn linear_multiplication_prot(&mut self, mut a_vec_shares: Vec<Vec<LargeField>>, mut b_vec_shares: Vec<Vec<LargeField>>, depth: usize) {
+    pub async fn init_linear_multiplication_prot(&mut self, mut a_vec_shares: Vec<Vec<LargeField>>, mut b_vec_shares: Vec<Vec<LargeField>>, depth: usize) {
         // Pad shares until they become a multiple of 2t+1
         let multiple_of_val = 2*self.num_faults+1;
         let mut padding_length = multiple_of_val - (a_vec_shares.len()%multiple_of_val);
@@ -245,6 +245,7 @@ impl Context{
 
         depth_state.recv_share_count_l2 +=1;
         // Interpolate polynomial
+        // Idempotence satisfied here
         if depth_state.recv_share_count_l2 == self.num_nodes - self.num_faults{
             log::info!("Attempting L2 reconstruction at depth {}", depth);
             // We have enough shares to reconstruct the polynomial
@@ -262,7 +263,7 @@ impl Context{
             }
             let hash = do_hash(&appended_msg);
             log::info!("Completed processing triples at depth {} with linear sharings, broadcasting hash {:?}", depth, hash);
-            self.broadcast(ProtMsg::HashZMsg(hash,depth,false)).await;
+            self.init_hash_broadcast(hash, depth).await;
             self.verify_depth_mult_termination(depth).await;
         }
     }

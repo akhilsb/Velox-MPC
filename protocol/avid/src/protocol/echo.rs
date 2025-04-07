@@ -54,12 +54,11 @@ impl Context {
 
             // Send ready message
             let avid_ready_msg = indices;
-            self.handle_ready(avid_ready_msg.clone(), self.myid,instance_id).await;
             let ready_msg = ProtMsg::Ready(avid_ready_msg, instance_id);
             self.broadcast(ready_msg).await;
         }
         // Go for optimistic termination if all n shares have appeared
-        else if size == self.num_nodes{
+        else if size == self.num_nodes && !avid_context.terminated{
             log::info!("Received n ECHO messages for RBC Instance ID {}, terminating",instance_id);
             avid_context.terminated = true;
             // Send message to recipients and terminate

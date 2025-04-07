@@ -3,7 +3,7 @@ use lambdaworks_math::{polynomial::Polynomial};
 use protocol::{LargeField};
 use types::{Replica};
 
-use crate::{Context};
+use crate::{Context, msg::ProtMsg};
 
 use super::mult_state::SingleDepthState;
 
@@ -12,12 +12,17 @@ impl Context{
         // Padding necessary to make sure each group has the same number of elements
         let num_multiplications = a_shares.len();
         if num_multiplications > self.multiplication_switch_threshold{
-            Box::pin(self.linear_multiplication_prot(a_shares, b_shares, depth)).await;
+            Box::pin(self.init_linear_multiplication_prot(a_shares, b_shares, depth)).await;
         }
         else{
             // Use quadratic multiplication protocol here
-            Box::pin(self.quadratic_multiplication_prot(a_shares, b_shares, depth)).await;
+            Box::pin(self.init_quadratic_multiplication_prot(a_shares, b_shares, depth)).await;
         }
+    }
+
+    pub async fn init_hash_broadcast(&mut self, hash: Hash, depth: usize){
+        self.broadcast(ProtMsg::HashZMsg(hash,depth,false)).await;
+        self.verify_depth_mult_termination(depth).await;
     }
 
     pub async fn handle_hash_broadcast(&mut self, hash: Hash, depth: usize, lin_or_quad: bool, sender: Replica){
@@ -41,14 +46,14 @@ impl Context{
         if mult_state.depth_terminated{
             return;
         }
-        if mult_state.recv_hash_msgs.len() == self.num_nodes-self.num_faults && mult_state.recv_hash_set.len() == 1{
+        if mult_state.recv_hash_msgs.len() >= self.num_nodes-self.num_faults && mult_state.recv_hash_set.len() == 1{
             log::info!("Received 2t+1 Hashes for multiplication at depth {} with Hash {:?}, computing sharings of output gate",depth, mult_state.recv_hash_set);            
         }
         else{
             return;
         }
         let reconstructed_blinded_secrets;
-        if mult_state.two_levels{
+        if mult_state.two_levels {
             reconstructed_blinded_secrets = mult_state.l2_shares_reconstructed.clone();
         }
         else{
@@ -96,7 +101,7 @@ impl Context{
             }
             else if depth > self.max_depth{
                 // TODO: Initiate next depth multiplication here. 
-                self.handle_ex_mult_termination(depth, shares_next_depth).await;
+                self.verify_ex_mult_termination_verification(depth, shares_next_depth).await;
             }
             else{
                 // Temporary

@@ -36,7 +36,7 @@ impl Context{
     pub async fn handle_avss_share_output(&mut self, origin: Replica, avss_share: AvssShare){
         log::info!("Handling AVSS share from sender {}", origin);
         self.output_mask_state.avss_shares.insert(origin, avss_share);
-        self.send_term_event_to_acs_channel(origin).await;
+        self.verify_sender_termination(origin).await;
     }
 
     pub async fn generate_random_mask_shares(&mut self, acs_recon_set: HashSet<Replica>, vdm_matrix: Vec<Vec<LargeField>>){

@@ -4,7 +4,7 @@ use lambdaworks_math::{polynomial::Polynomial, traits::ByteConversion};
 use protocol::{LargeField, LargeFieldSer};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator, IntoParallelRefIterator};
 
-use crate::{Context};
+use crate::{Context, msg::ProtMsg};
 
 use super::ex_compr_state::ExComprState;
 
@@ -12,7 +12,7 @@ use protocol::poly::check_if_all_points_lie_on_degree_x_polynomial;
 
 impl Context{
     // This method starts compression from the second level onwards
-    pub async fn start_compression_level(&mut self, x_vector: Vec<LargeField>, y_vector: Vec<LargeField>, agg_val: LargeField, depth: usize){
+    pub async fn init_compression_level(&mut self, x_vector: Vec<LargeField>, y_vector: Vec<LargeField>, agg_val: LargeField, depth: usize){
         // Split into chunks for compression
         let elements_per_chunk;
         if x_vector.len() >= self.compression_factor{
@@ -49,7 +49,7 @@ impl Context{
     // This function takes a two-layered vector: 
     // First layer is a vector of tuples    
     // Second layer is encompasses a set of k vectors.  
-    pub async fn ex_compression_tuples(&mut self, depth: usize) {
+    pub async fn init_ex_compression_tuples(&mut self, depth: usize) {
         // create polynomials on x and y
         if !self.verf_state.ex_compr_state.contains_key(&depth){
             return;
@@ -67,11 +67,7 @@ impl Context{
         let (rem_x, rem_y, rem_mult) = ex_compr_state.rem_mult_tup.clone().unwrap();
         
         let sum_mult: LargeField = mult_vec.clone().into_iter().sum();
-        
-        x_vectors.push(rem_x);
-        y_vectors.push(rem_y);
-        mult_vec.push(rem_mult-sum_mult);
-
+        let mut sub_mult = rem_mult - sum_mult;
         // If this round is the last round, mask the output with a random sharing to ensure adversary does not know any thing about the inputs or gates
         if x_vectors[0].len() == 1{
             log::info!("Ex_compr: Last round of compression, adding a random mask to the tuples list");
@@ -81,7 +77,21 @@ impl Context{
             x_vectors.push(vec![random_mask_a]);
             y_vectors.push(vec![random_mask_b]);
             mult_vec.push(random_mask_c);
+
+            ex_compr_state.x_sharings.push(vec![random_mask_a]);
+            ex_compr_state.y_sharings.push(vec![random_mask_b]);
+            ex_compr_state.mult_sharings.push(random_mask_c);
+
+            sub_mult = sub_mult - random_mask_c;
         }
+        // Add back the sum of multiplication results back into the mix for ex_compr
+        x_vectors.push(rem_x.clone());
+        y_vectors.push(rem_y.clone());
+        mult_vec.push(sub_mult.clone());
+
+        ex_compr_state.x_sharings.push(rem_x);
+        ex_compr_state.y_sharings.push(rem_y);
+        ex_compr_state.mult_sharings.push(sub_mult);
 
         if x_vectors.len() != y_vectors.len() || x_vectors.len() != mult_vec.len() {
             log::error!("Ex_compr: X, Y, and Z vectors must be of the same length, returning multiplication");
@@ -148,7 +158,7 @@ impl Context{
         }
     }
 
-    pub async fn handle_ex_mult_termination(&mut self, depth: usize, mult_result: Vec<LargeField>){
+    pub async fn verify_ex_mult_termination_verification(&mut self, depth: usize, mult_result: Vec<LargeField>){
         if depth == self.delinearization_depth{
             if mult_result.len() == 0{
                 log::error!("Ex_compr: Mult result is empty for depth {}, returning",depth);
@@ -163,7 +173,7 @@ impl Context{
                 // This is the first level of ex_mult termination, initiate second level of ex_mult at this depth here
                 let ex_compr_state = self.verf_state.ex_compr_state.entry(depth).or_insert_with(|| ExComprState::new(depth));
                 ex_compr_state.mult_sharings.extend(mult_result.clone());
-                self.ex_compression_tuples(depth).await;
+                self.init_ex_compression_tuples(depth).await;
             }
             else{
                 // This is the second level of ex_mult termination, initiate further compression here
@@ -212,13 +222,23 @@ impl Context{
 
         // Toss coin here
         self.toss_common_coin(depth).await;
-        self.check_level_termination(depth).await;
+        self.verify_level_termination(depth).await;
     }
 
-    pub async fn check_level_termination(&mut self, depth: usize) {
+    // Satisfy idempotence here
+    pub async fn verify_level_termination(&mut self, depth: usize) {
         let ex_compr_state = self.verf_state.ex_compr_state.get_mut(&depth).unwrap();
+        if ex_compr_state.ex_compr_terminated{
+            return;
+        }
         if ex_compr_state.h_poly.is_none() || ex_compr_state.x_polys.is_none() || ex_compr_state.y_polys.is_none() || ex_compr_state.coin_output.is_none() {
-            log::warn!("handle_coin_termination: h_poly:{:?}, x_poly {:?}. y_poly {:?}, common coin {:?}, Cannot proceed with coin termination at depth {}",ex_compr_state.h_poly,ex_compr_state.x_polys,ex_compr_state.y_polys,ex_compr_state.coin_output, depth);
+            log::warn!("handle_coin_termination: h_poly:{:?}, x_poly {:?}. y_poly {:?}, common coin {:?}, Cannot proceed with coin termination at depth {}"
+                            ,ex_compr_state.h_poly.is_some(),
+                            ex_compr_state.x_polys.is_some(),
+                            ex_compr_state.y_polys.is_some(),
+                            ex_compr_state.coin_output.is_some(), 
+                            depth
+                        );
             return;
         }
         let h_polynomial = ex_compr_state.h_poly.as_ref().unwrap();
@@ -233,9 +253,17 @@ impl Context{
             // Last level of compression, reconstruct sharings here
             log::info!("Last level of compression at depth {} with size of vectors {}, proceeding to reconstruct sharings",depth,x_points.len());
         }
-        
+        ex_compr_state.ex_compr_terminated = true;
         log::info!("Terminated compression at depth {} with size of xvector {}, yvector {} hpoint {}, proceeding to next depth",depth,x_points.len(),y_points.len(),h_point);
-        //self.start_compression_level(x_points, y_points, h_point, depth+2).await;
+        if x_points.len() == 1{
+            log::info!("Last level of compression, reconstructing secrets");
+            let prot_msg = ProtMsg::ReconstructVerfOutputSharing(x_points[0].to_bytes_be(), y_points[0].to_bytes_be(), h_point.to_bytes_be());
+            self.broadcast(prot_msg).await;
+        }
+        else{
+            self.init_compression_level(x_points, y_points, h_point, depth+2).await;
+        }
+        //self.terminate("Term".to_string()).await;
     }
 
     pub fn gen_evaluation_points_ex_compr(poly_def_points_count: usize)-> (Vec<LargeField>, Vec<LargeField>) {

@@ -23,7 +23,7 @@ impl Context{
         self.toss_common_coin(self.delinearization_depth).await;
     }
 
-    pub async fn handle_coin_toss_deserialization(&mut self){
+    pub async fn verify_coin_toss_deserialization(&mut self){
         if !self.verf_state.ex_compr_state.contains_key(&self.delinearization_depth){
             return;
         }
@@ -62,7 +62,6 @@ impl Context{
 
         // Compress shares with dimension reduction factor k
         let summed_mult_value: LargeField = mult_values.into_iter().sum();
-
-        self.start_compression_level(x_values, y_values, summed_mult_value, self.delinearization_depth +2).await;
+        self.init_compression_level(x_values, y_values, summed_mult_value, self.delinearization_depth +2).await;
     }
 }

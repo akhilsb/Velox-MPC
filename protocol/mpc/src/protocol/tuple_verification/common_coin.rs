@@ -13,7 +13,12 @@ impl Context{
         let prot_msg = ProtMsg::ReconstructCoin(coin_share.to_bytes_be(), depth);
 
         self.broadcast(prot_msg).await;
-        //self.handle_coin_toss_deserialization().await;
+        if depth == self.delinearization_depth{
+            self.verify_coin_toss_deserialization().await;
+        }
+        else {
+            self.verify_level_termination(depth).await;
+        }
     }
 
     pub async fn handle_common_coin_msg(&mut self, lf_share: LargeFieldSer, sender: usize, depth: usize){
@@ -26,27 +31,26 @@ impl Context{
         ex_compr_state.coin_toss_shares.0.push(evaluation_point);
         ex_compr_state.coin_toss_shares.1.push(LargeField::from_bytes_be(&lf_share).unwrap());
         
-        log::info!("Received coin toss from sender {} at depth {}: evaluation point {:?} with value {:?}", 
-            sender, depth, evaluation_point, lf_share);
+        log::info!("Received coin toss from sender {} at depth {}", 
+            sender, depth);
         
-        if ex_compr_state.coin_toss_shares.0.len() == self.num_faults + 1{
+        if ex_compr_state.coin_toss_shares.0.len() >= self.num_faults + 1 && ex_compr_state.coin_output.is_none(){
             // Reconstruct coin with these points
             let polynomial = Polynomial::interpolate(
-                &ex_compr_state.coin_toss_shares.0, 
-                &ex_compr_state.coin_toss_shares.1
+                &ex_compr_state.coin_toss_shares.0[0..self.num_faults+1], 
+                &ex_compr_state.coin_toss_shares.1[0..self.num_faults+1],
             ).unwrap();
             let coin_value = polynomial.evaluate(&LargeField::zero());
             ex_compr_state.coin_output = Some(coin_value.clone());
             if depth == self.delinearization_depth{
                 log::info!("Reconstructed common coin at delinearization depth {}: {:?}", depth, ex_compr_state.coin_output);
-                self.handle_coin_toss_deserialization().await;
+                self.verify_coin_toss_deserialization().await;
             }
             else{
                 // Trigger subsequent phase here. 
                 log::info!("Reconstructed common coin at depth {}: {:?}", depth, ex_compr_state.coin_output);
-                self.check_level_termination(depth).await;
+                self.verify_level_termination(depth).await;
             }
         }
-
     }
 }

@@ -30,7 +30,7 @@ impl Context{
         && acss_state.verification_status.contains_key(&sender){
             if acss_state.verification_status.get(&sender).unwrap().clone(){
                 // Send shares back to parent process
-                log::info!("Sending shares back to syncer for sender {}",sender);
+                log::info!("Sending shares back to syncer for sender {} for instance id {}",sender, instance_id);
                 if self.avss_inst_id == instance_id{
                     acss_state.acss_status.insert(sender);
                     let shares = acss_state.shares.get(&sender).unwrap().clone();

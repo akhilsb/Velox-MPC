@@ -49,7 +49,6 @@ impl Context {
             let wrapper_msg = WrapperMsg::new(protocol_msg.clone(), self.myid, &sec_key.as_slice());
             let cancel_handler: CancelHandler<Acknowledgement> = self.net_send.send(replica, wrapper_msg).await;
             self.add_cancel_handler(cancel_handler);
-
         }
     }
 
@@ -78,9 +77,7 @@ impl Context {
         avid_state.fragments = Some(msg);
         
         // Start echo
-        self.handle_echo(indices.clone(), self.myid, instance_id).await;
         let protocol_msg = ProtMsg::Echo(indices, instance_id);
-
         self.broadcast(protocol_msg).await;
     }
 }

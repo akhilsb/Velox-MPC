@@ -34,7 +34,7 @@ pub struct Context {
     pub num_nodes: usize,
     pub myid: usize,
     pub num_faults: usize,
-    byz: bool,
+    _byz: bool,
 
     /// Secret Key map
     pub sec_key_map: HashMap<Replica, Vec<u8>>,
@@ -64,7 +64,7 @@ impl Context {
         config: Node,
         input_msgs: Receiver<Vec<(Replica,Option<Vec<u8>>)>>, 
         output_msgs: Sender<(usize, Replica,Option<Vec<u8>>)>, 
-        byz: bool
+        _byz: bool
     ) -> anyhow::Result<oneshot::Sender<()>> {
         // Add a separate configuration for RBC service. 
 
@@ -107,7 +107,7 @@ impl Context {
                 sec_key_map: HashMap::default(),
                 hash_context: hashstate,
                 myid: config.id,
-                byz: byz,
+                _byz: _byz,
                 num_faults: config.num_faults,
                 cancel_handlers: HashMap::default(),
                 exit_rx: exit_rx,
@@ -138,16 +138,9 @@ impl Context {
     pub async fn broadcast(&mut self, protmsg: ProtMsg) {
         let sec_key_map = self.sec_key_map.clone();
         for (replica, sec_key) in sec_key_map.into_iter() {
-            if self.byz && replica % 2 == 0 {
-                // Simulates a crash fault
-                continue;
-            }
-            if replica != self.myid {
-                let wrapper_msg = WrapperMsg::new(protmsg.clone(), self.myid, &sec_key.as_slice());
-                let cancel_handler: CancelHandler<Acknowledgement> =
-                    self.net_send.send(replica, wrapper_msg).await;
-                self.add_cancel_handler(cancel_handler);
-            }
+            let wrapper_msg = WrapperMsg::new(protmsg.clone(), self.myid, &sec_key.as_slice());
+            let cancel_handler: CancelHandler<Acknowledgement> = self.net_send.send(replica, wrapper_msg).await;
+            self.add_cancel_handler(cancel_handler);
         }
     }
 
