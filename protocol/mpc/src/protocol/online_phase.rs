@@ -11,7 +11,7 @@ impl Context{
         let mut a_shares = Vec::new();
         let mut b_shares = Vec::new();
 
-        let tot_sharings = (2*self.num_faults+1)*50;
+        let tot_sharings = 1000;
         let mut combined_shares = vec![vec![];tot_sharings];
 
         for i in 0..tot_sharings{

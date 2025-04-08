@@ -13,13 +13,13 @@ impl Context{
         let random_a_share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
         let random_b_share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
 
-        let vec_a_share = vec![vec![random_a_share]];
-        let vec_b_share = vec![vec![random_b_share]];
+        //let vec_a_share = vec![vec![random_a_share]];
+        //let vec_b_share = vec![vec![random_b_share]];
 
         self.verf_state.random_mask.0 = Some(random_a_share);
         self.verf_state.random_mask.1 = Some(random_b_share);
 
-        self.choose_multiplication_protocol(vec_a_share, vec_b_share, self.delinearization_depth).await;
+        //self.choose_multiplication_protocol(vec_a_share, vec_b_share, self.delinearization_depth).await;
         self.toss_common_coin(self.delinearization_depth).await;
     }
 
@@ -59,7 +59,7 @@ impl Context{
             *mult *= r_iter;
             r_iter *= coin_value;
         }
-
+        log::info!("Multiplication tuples after coin toss: x: {:?}, y: {:?}, mult: {:?}",x_values, y_values, mult_values);
         // Compress shares with dimension reduction factor k
         let summed_mult_value: LargeField = mult_values.into_iter().sum();
         self.init_compression_level(x_values, y_values, summed_mult_value, self.delinearization_depth +2).await;

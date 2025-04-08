@@ -1,5 +1,3 @@
-use std::ops::Mul;
-
 use lambdaworks_math::{polynomial::Polynomial, traits::ByteConversion};
 use protocol::{LargeField, LargeFieldSer};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator, IntoParallelRefIterator};
@@ -40,7 +38,19 @@ impl Context{
         // Save the multiplication results in the structure
         ex_compr_state.x_sharings.extend(x_vec_chunks.clone());
         ex_compr_state.y_sharings.extend(y_vec_chunks.clone());
-        
+
+        if x_vec_chunks[0].len() == 1{
+            // Add random mask to the compression 
+            log::info!("Final level of compression, adding random mask to the compression");
+            let x_rand_mask = vec![self.verf_state.random_mask.0.clone().unwrap()];
+            let y_rand_mask = vec![self.verf_state.random_mask.1.clone().unwrap()];
+
+            x_vec_chunks.push(x_rand_mask.clone());
+            y_vec_chunks.push(y_rand_mask.clone());
+
+            ex_compr_state.x_sharings.push(x_rand_mask);
+            ex_compr_state.y_sharings.push(y_rand_mask);   
+        }
         log::info!("Starting tuple compression at depth {} with tuple depth {} and num tuples {}", depth,x_vec_chunks[0].len(), x_vec_chunks.len());
         // Multiply these tuples using ex_mult
         self.choose_multiplication_protocol(x_vec_chunks, y_vec_chunks, depth).await;
@@ -66,24 +76,16 @@ impl Context{
         }
         let (rem_x, rem_y, rem_mult) = ex_compr_state.rem_mult_tup.clone().unwrap();
         
-        let sum_mult: LargeField = mult_vec.clone().into_iter().sum();
-        let mut sub_mult = rem_mult - sum_mult;
-        // If this round is the last round, mask the output with a random sharing to ensure adversary does not know any thing about the inputs or gates
+        let mut mult_value_last_round = LargeField::zero();
         if x_vectors[0].len() == 1{
-            log::info!("Ex_compr: Last round of compression, adding a random mask to the tuples list");
-            let random_mask_a = self.verf_state.random_mask.0.unwrap();
-            let random_mask_b = self.verf_state.random_mask.1.unwrap();
-            let random_mask_c = self.verf_state.random_mask.2.unwrap();
-            x_vectors.push(vec![random_mask_a]);
-            y_vectors.push(vec![random_mask_b]);
-            mult_vec.push(random_mask_c);
-
-            ex_compr_state.x_sharings.push(vec![random_mask_a]);
-            ex_compr_state.y_sharings.push(vec![random_mask_b]);
-            ex_compr_state.mult_sharings.push(random_mask_c);
-
-            sub_mult = sub_mult - random_mask_c;
+            log::info!("Final level of compression, removing random mask from the set of multiplication tuples");
+            mult_value_last_round = *mult_vec.last().clone().unwrap();
         }
+
+        let sum_mult: LargeField = mult_vec.clone().into_iter().sum();
+        let sub_mult = rem_mult - sum_mult + mult_value_last_round;
+        
+        // If this round is the last round, mask the output with a random sharing to ensure adversary does not know any thing about the inputs or gates
         // Add back the sum of multiplication results back into the mix for ex_compr
         x_vectors.push(rem_x.clone());
         y_vectors.push(rem_y.clone());
@@ -121,7 +123,7 @@ impl Context{
             return Polynomial::interpolate(&first_set_eval_points, &evaluations).unwrap();
         }).collect();
         let y_polynomials: Vec<Polynomial<LargeField>> = y_polynomial_evaluations_vector.into_par_iter().map(|evaluations| {
-            return Polynomial::interpolate(&second_set_eval_points, &evaluations).unwrap();
+            return Polynomial::interpolate(&first_set_eval_points, &evaluations).unwrap();
         }).collect();
 
         // Evaluate polynomials on second set of points and collect them.
@@ -159,30 +161,31 @@ impl Context{
     }
 
     pub async fn verify_ex_mult_termination_verification(&mut self, depth: usize, mult_result: Vec<LargeField>){
-        if depth == self.delinearization_depth{
-            if mult_result.len() == 0{
-                log::error!("Ex_compr: Mult result is empty for depth {}, returning",depth);
-                return; // Handle error: multiplication result is empty
-            }
-            log::info!("Multiplication terminated at delinearization depth {}, storing result", depth);
-            let rand_mult_sharing = mult_result[0].clone();
-            self.verf_state.random_mask.2 = Some(rand_mult_sharing);
+        if depth % 2 == 0{
+            // This is the first level of ex_mult termination, initiate second level of ex_mult at this depth here
+            let ex_compr_state = self.verf_state.ex_compr_state.entry(depth).or_insert_with(|| ExComprState::new(depth));
+            ex_compr_state.mult_sharings.extend(mult_result.clone());
+            self.init_ex_compression_tuples(depth).await;
         }
         else{
-            if depth % 2 == 0{
-                // This is the first level of ex_mult termination, initiate second level of ex_mult at this depth here
-                let ex_compr_state = self.verf_state.ex_compr_state.entry(depth).or_insert_with(|| ExComprState::new(depth));
-                ex_compr_state.mult_sharings.extend(mult_result.clone());
-                self.init_ex_compression_tuples(depth).await;
-            }
-            else{
-                // This is the second level of ex_mult termination, initiate further compression here
-                let depth_state_ex_compr = depth - 1;
-                let ex_compr_state = self.verf_state.ex_compr_state.entry(depth_state_ex_compr).or_insert_with(|| ExComprState::new(depth));
-                ex_compr_state.extended_mult_sharings.extend(mult_result.clone()); // Store the multiplication results for the next round of compression
-                self.handle_level_mult_termination(depth_state_ex_compr).await;
-            }
+            // This is the second level of ex_mult termination, initiate further compression here
+            let depth_state_ex_compr = depth - 1;
+            let ex_compr_state = self.verf_state.ex_compr_state.entry(depth_state_ex_compr).or_insert_with(|| ExComprState::new(depth));
+            ex_compr_state.extended_mult_sharings.extend(mult_result.clone()); // Store the multiplication results for the next round of compression
+            self.handle_level_mult_termination(depth_state_ex_compr).await;
         }
+        // if depth == self.delinearization_depth{
+        //     if mult_result.len() == 0{
+        //         log::error!("Ex_compr: Mult result is empty for depth {}, returning",depth);
+        //         return; // Handle error: multiplication result is empty
+        //     }
+        //     log::info!("Multiplication terminated at delinearization depth {}, storing result", depth);
+        //     let rand_mult_sharing = mult_result[0].clone();
+        //     self.verf_state.random_mask.2 = Some(rand_mult_sharing);
+        // }
+        // else{
+            
+        // }
     }
 
     pub async fn handle_level_mult_termination(&mut self, depth: usize){
@@ -293,9 +296,9 @@ impl Context{
             // Reconstruct points and check if all 2t+1 points lie on the degree t polynomial
             let evaluation_indices = self.verf_state.output_verf_reconstruction_shares.0.clone();
             let vec_eval_points = vec![
-                self.verf_state.output_verf_reconstruction_shares.0.clone(),
                 self.verf_state.output_verf_reconstruction_shares.1.clone(),
-                self.verf_state.output_verf_reconstruction_shares.2.clone()];
+                self.verf_state.output_verf_reconstruction_shares.2.clone(),
+                self.verf_state.output_verf_reconstruction_shares.3.clone()];
             
             let verify_polynomials = check_if_all_points_lie_on_degree_x_polynomial(evaluation_indices, vec_eval_points, self.num_faults+1);
             if !verify_polynomials.0{
@@ -316,13 +319,14 @@ impl Context{
             let b_sec = b_poly.evaluate(&eval_point);
             let c_sec = c_poly.evaluate(&eval_point);
 
-            if (a_sec.mul(b_sec)) == c_sec{
+            if a_sec*b_sec == c_sec{
                 log::info!("handle_reconstruct_verf_output_sharing: Multiplication constraint holds.");
                 // Output from here
+                self.terminate("data".to_string()).await;
                 // Code goes back to the output phase from here
             }
             else{
-                log::error!("handle_reconstruct_verf_output_sharing: Multiplication constraint does not hold, with {} {} {}", a_sec, b_sec, c_sec);
+                log::error!("handle_reconstruct_verf_output_sharing: Multiplication constraint does not hold, with {} {}", a_sec* b_sec, c_sec);
                 return;
             }
         }

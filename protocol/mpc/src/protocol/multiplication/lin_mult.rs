@@ -14,6 +14,14 @@ use crate::{msg::ProtMsg};
 impl Context{
     pub async fn init_linear_multiplication_prot(&mut self, mut a_vec_shares: Vec<Vec<LargeField>>, mut b_vec_shares: Vec<Vec<LargeField>>, depth: usize) {
         // Pad shares until they become a multiple of 2t+1
+        // Share inputs for later verification
+        if depth <= self.max_depth {
+            let first_a_shares: Vec<LargeField> = a_vec_shares.clone().into_iter().map(|x| x[0]).collect();
+            let first_b_shares: Vec<LargeField> = b_vec_shares.clone().into_iter().map(|x| x[0]).collect();
+            log::info!("Adding shares to verification state with a:{} b:{} at depth {}", first_a_shares.len(), first_b_shares.len(), depth);
+            self.verf_state.add_mult_inputs(depth, first_a_shares, first_b_shares);
+        }
+        
         let multiple_of_val = 2*self.num_faults+1;
         let mut padding_length = multiple_of_val - (a_vec_shares.len()%multiple_of_val);
         if (a_vec_shares.len()%multiple_of_val) == 0{
@@ -66,14 +74,6 @@ impl Context{
                 log::error!("Not enough random shares for zero multiplication protocol");
                 return;
             }
-        }
-
-        // Share inputs for later verification
-        if depth <= self.max_depth {
-            let first_a_shares: Vec<LargeField> = a_vec_shares.clone().into_iter().map(|x| x[0]).collect();
-            let first_b_shares: Vec<LargeField> = b_vec_shares.clone().into_iter().map(|x| x[0]).collect();
-            log::info!("Adding shares to verification state with a:{} b:{} at depth {}", first_a_shares.len(), first_b_shares.len(), depth);
-            self.verf_state.add_mult_inputs(depth, first_a_shares, first_b_shares);
         }
             
         // Group inputs
