@@ -47,6 +47,10 @@ impl Context{
             let shards:Vec<Vec<u8>> = shards.into_iter().map(| opt | opt.unwrap()).collect();
             // Reconstruct Merkle Root
             let merkle_tree = construct_merkle_tree(shards.clone(), &self.hash_context);
+            if avid_context.echo_roots.is_none(){
+                // Protocol did not reach this point yet. 
+                return;
+            }
             if avid_context.echo_roots.clone().unwrap().1.contains(&merkle_tree.root()) {
                 let mut message = Vec::new();
                 for i in 0..self.num_faults+1{

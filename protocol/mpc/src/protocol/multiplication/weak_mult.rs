@@ -85,7 +85,10 @@ impl Context{
             // How to handle next depth wires?
             mult_state.depth_terminated = true;
             if depth == self.preprocessing_mult_depth{
-                
+                // Random bit sharings, add them to mix_circuit state
+                self.mix_circuit_state.rand_bit_sharings.extend(shares_next_depth);
+                self.terminate("Preprocessing".to_string()).await;
+                // Start next depth and real circuit execution                
             }
             else if depth < self.max_depth{
                 // Start the next depth multiplication here     

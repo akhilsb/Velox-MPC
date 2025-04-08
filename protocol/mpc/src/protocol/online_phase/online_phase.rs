@@ -16,7 +16,7 @@ impl Context{
         self.rand_sharings_state.rand_sharings_inputs.0.clear();
         self.rand_sharings_state.rand_sharings_inputs.1.clear();
 
-        self.choose_multiplication_protocol(a_shares, b_shares, 1).await;
+        self.choose_multiplication_protocol(a_shares, b_shares, self.preprocessing_mult_depth).await;
     }
 
     pub async fn handle_mult_term_tmp(&mut self, shares: Vec<LargeField>){

@@ -23,7 +23,7 @@ use types::{Replica, WrapperMsg, SyncMsg, SyncState};
 
 use crypto::{aes_hash::HashState};
 
-use crate::{msg::ProtMsg, handlers::{sync_handler::SyncHandler, handler::Handler}, protocol::{RandSharings, MultState, VerificationState, rand_sharings::rand_mask::RandomOutputMaskStruct}};
+use crate::{msg::ProtMsg, handlers::{sync_handler::SyncHandler, handler::Handler}, protocol::{RandSharings, MultState, VerificationState, rand_sharings::rand_mask::RandomOutputMaskStruct, online_phase::mix_circuit_state::MixCircuitState}};
 
 pub struct Context {
     /// Networking context
@@ -46,7 +46,8 @@ pub struct Context {
     pub cancel_handlers: HashMap<u64, Vec<CancelHandler<Acknowledgement>>>,
     exit_rx: oneshot::Receiver<()>,
     
-    pub per_batch: usize,
+    pub k_value: usize,
+    pub per_batch_maximum: usize,
     pub tot_batches: usize,
 
     pub total_sharings_for_coins: usize,
@@ -88,6 +89,8 @@ pub struct Context {
     pub verf_state: VerificationState,
     // Random masks for the output
     pub output_mask_state: RandomOutputMaskStruct,
+    // Mix circuit state for mixing circuit implementation
+    pub mix_circuit_state: MixCircuitState,
 
     pub tmp_mult_state: HashMap<usize, (Vec<LargeField>,Vec<Vec<LargeField>>)>,
 
@@ -109,7 +112,7 @@ impl Context {
     pub fn spawn(
         config: Node,
         per_batch: usize,
-        tot_batches: usize,
+        _tot_batches: usize,
         _byz: bool
     ) -> anyhow::Result<oneshot::Sender<()>> {
         // Add a separate configuration for RBC service. 
@@ -207,6 +210,16 @@ impl Context {
         let rbc_start_id = threshold*config.id;
 
         let use_fft = false;
+
+        let k = 1024 as u64;
+        let log_k = (u64::BITS - k.leading_zeros() -1) as usize;
+        let k = k as usize;
+
+        let tot_sharings = (((k/2)*log_k*log_k)/(config.num_faults+1))+1;
+        let num_batches = tot_sharings/per_batch;
+        // Ensure this is a power of 2. 
+        let inputs: Vec<LargeField> = (0..k).into_iter().map(|x| LargeField::from(x as u64)).collect();
+        log::info!("Generating {} random sharings and proposing {} sharings over {} batches for mixing {} inputs", (k/2)*log_k*log_k, tot_sharings, num_batches, k);
         tokio::spawn(async move {
             let mut c = Context {
                 net_send: consensus_net,
@@ -225,8 +238,9 @@ impl Context {
 
                 max_id: rbc_start_id,
 
-                per_batch: per_batch,
-                tot_batches: tot_batches,
+                k_value: k,
+                per_batch_maximum: per_batch,
+                tot_batches: num_batches,
 
                 total_sharings_for_coins: 2*config.num_nodes,
                 
@@ -256,6 +270,7 @@ impl Context {
                 mult_state: MultState::new(),
                 verf_state: VerificationState::new(),
                 output_mask_state: RandomOutputMaskStruct::new(),
+                mix_circuit_state: MixCircuitState::new(inputs),
                 tmp_mult_state: HashMap::default(),
 
                 use_fft: use_fft,
@@ -264,7 +279,7 @@ impl Context {
                 max_depth: 200,
                 output_mask_size: 500,
 
-                preprocessing_mult_depth: 1,
+                preprocessing_mult_depth: 0,
                 delinearization_depth: 5000, 
                 compression_factor: 10,
                 multiplication_switch_threshold: 0
@@ -467,7 +482,7 @@ impl Context {
                             // Start your protocol from here
                             // Write a function to broadcast a message. We demonstrate an example with a PING function
                             // Dealer sends message to everybody. <M, init>
-                            self.init_rand_sh(self.per_batch, self.tot_batches).await;
+                            self.init_rand_sh().await;
                         },
                         SyncState::STOP =>{
                             // Code used for internal purposes

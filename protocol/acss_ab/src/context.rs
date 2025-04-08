@@ -309,7 +309,7 @@ impl Context {
                     let ra_msg = ra_msg.ok_or_else(||
                         anyhow!("Networking layer has closed")
                     )?;
-                    log::info!("Received termination event from RA channel from party {} messages at time: {:?}", ra_msg.1, SystemTime::now()
+                    log::info!("Received termination event from RA channel from party {} messages at time: {:?}", ra_msg.0, SystemTime::now()
                                 .duration_since(UNIX_EPOCH)
                                 .unwrap()
                                 .as_millis());
