@@ -8,27 +8,15 @@ impl Context{
     // This function will be used to run the online phase of the protocol
     pub async fn run_online_phase(&mut self) {
         // Take two random sharings, and multiply them using a random double sharing
-        let mut a_shares = Vec::new();
-        let mut b_shares = Vec::new();
+        let a_shares = self.rand_sharings_state.rand_sharings_inputs.0.clone().into_iter()
+            .map(|x| vec![x]).collect();
+        let b_shares = self.rand_sharings_state.rand_sharings_inputs.1.clone().into_iter()
+        .map(|x| vec![x]).collect();
 
-        let tot_sharings = 1000;
-        let mut combined_shares = vec![vec![];tot_sharings];
-
-        for i in 0..tot_sharings{
-            let share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
-            a_shares.push(vec![share.clone()]);
-            combined_shares[i].push(share);
-        }
-        for i in 0..tot_sharings{
-            let share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
-            b_shares.push(vec![share.clone()]);
-            combined_shares[i].push(share);
-        }
+        self.rand_sharings_state.rand_sharings_inputs.0.clear();
+        self.rand_sharings_state.rand_sharings_inputs.1.clear();
 
         self.choose_multiplication_protocol(a_shares, b_shares, 1).await;
-        // for (index,coup) in combined_shares.into_iter().enumerate(){
-        //     self.reconstruct_rand_sharings(coup, index).await;
-        // }
     }
 
     pub async fn handle_mult_term_tmp(&mut self, shares: Vec<LargeField>){

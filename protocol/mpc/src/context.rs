@@ -99,6 +99,7 @@ pub struct Context {
     pub max_depth: usize,
     pub output_mask_size: usize,
 
+    pub preprocessing_mult_depth: usize,
     pub delinearization_depth: usize, 
     pub compression_factor: usize,
     pub multiplication_switch_threshold: usize,
@@ -260,9 +261,10 @@ impl Context {
                 use_fft: use_fft,
                 roots_of_unity: acss_ab::Context::gen_roots_of_unity(config.num_nodes),
 
-                max_depth: 1,
+                max_depth: 200,
                 output_mask_size: 500,
 
+                preprocessing_mult_depth: 1,
                 delinearization_depth: 5000, 
                 compression_factor: 10,
                 multiplication_switch_threshold: 0

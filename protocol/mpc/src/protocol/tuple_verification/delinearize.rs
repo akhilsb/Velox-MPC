@@ -9,7 +9,7 @@ impl Context{
         // Here we will implement the logic for compressing the multiplication tuples
         // This might involve some form of serialization or aggregation of the shares
         // Initiate the random mask generation for the last level
-        log::info!("Initiating verification process: Preparing a beaver triple as a random mask and tossing a common coin");
+        log::info!("Initiating verification process: Preparing a random mask and tossing a common coin");
         let random_a_share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
         let random_b_share = self.rand_sharings_state.rand_sharings_mult.pop_front().unwrap();
 
@@ -59,7 +59,7 @@ impl Context{
             *mult *= r_iter;
             r_iter *= coin_value;
         }
-        log::info!("Multiplication tuples after coin toss: x: {:?}, y: {:?}, mult: {:?}",x_values, y_values, mult_values);
+        log::info!("Multiplication tuples after coin toss: x: {}, y: {}, mult: {}",x_values.len(), y_values.len(), mult_values.len());
         // Compress shares with dimension reduction factor k
         let summed_mult_value: LargeField = mult_values.into_iter().sum();
         self.init_compression_level(x_values, y_values, summed_mult_value, self.delinearization_depth +2).await;

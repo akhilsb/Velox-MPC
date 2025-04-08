@@ -84,7 +84,14 @@ impl Context{
             // self.choose_multiplication_protocol(a_shares, b_shares, depth)
             // How to handle next depth wires?
             mult_state.depth_terminated = true;
-            if depth == self.max_depth{
+            if depth == self.preprocessing_mult_depth{
+                
+            }
+            else if depth < self.max_depth{
+                // Start the next depth multiplication here     
+            }
+            else if depth == self.max_depth{
+                // TODO: Initiate next depth multiplication here. 
                 // Trigger output reconstruction
                 // Add output wires to the multiplication state as well. 
                 log::info!("Multiplication terminated at depth {}, adding random masks to output wires",depth);
@@ -100,12 +107,9 @@ impl Context{
                 self.delinearize_mult_tuples().await;
             }
             else if depth > self.max_depth{
-                // TODO: Initiate next depth multiplication here. 
-                self.verify_ex_mult_termination_verification(depth, shares_next_depth).await;
-            }
-            else{
                 // Temporary
-                self.handle_mult_term_tmp(shares_next_depth).await;
+                self.verify_ex_mult_termination_verification(depth, shares_next_depth).await;
+                //self.handle_mult_term_tmp(shares_next_depth).await;
             }
         }
         else{

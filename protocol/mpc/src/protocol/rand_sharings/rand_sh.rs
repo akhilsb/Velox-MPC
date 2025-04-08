@@ -9,25 +9,45 @@ use crate::{context::Context};
 impl Context{
     pub async fn init_rand_sh(&mut self, batch_size: usize, num_batches: usize){
         // Start ACSS with abort and 2t-sharing simultaneously for each batch
-        for batch in 0..num_batches{
-            // Create random values
-            let mut rand_values = Vec::new();
-            let mut zeros = Vec::new();
-            for _ in 0..batch_size{
-                rand_values.push(rand_field_element().to_bytes_be());
-                zeros.push(LargeField::from(0 as u64).to_bytes_be());
-            }
+        // Input sharings - Needed for generating t-sharings of +1/-1 for mixing circuit. 
+        let mut deg_t_batches = Vec::new();
+        let batches_inputs: Vec<Vec<LargeFieldSer>> = (0..num_batches).into_par_iter().map(|_| {
+            let rand_values: Vec<LargeFieldSer> = (0..batch_size).into_par_iter().map(|_| rand_field_element().to_bytes_be()).collect();
+            return rand_values;
+        }).collect();
+        // Doubly share same inputs
+        deg_t_batches.extend(batches_inputs.clone());
+        deg_t_batches.extend(batches_inputs);
 
-            log::info!("Initiating secret sharing in preprocessing phase for batch {}", batch);
-            let status = self.acss_ab_send.send((batch,rand_values)).await;
+        let batches_mult: Vec<Vec<LargeFieldSer>> = (0..2*num_batches).into_par_iter().map(|_| {
+            let rand_values: Vec<LargeFieldSer> = (0..batch_size).into_par_iter().map(|_| rand_field_element().to_bytes_be()).collect();
+            return rand_values;
+        }).collect();
+
+        deg_t_batches.extend(batches_mult.clone());
+        let zeros: Vec<Vec<LargeFieldSer>> = (0..num_batches).into_par_iter().map(|_| {
+            let rand_values: Vec<LargeFieldSer> = (0..batch_size).into_par_iter().map(|_| LargeField::zero().to_bytes_be()).collect();
+            return rand_values;
+        }).collect();
+
+        for (index,batch) in deg_t_batches.into_iter().enumerate(){
+            // Create random values
+            log::info!("Initiating secret sharing in preprocessing phase for batch {}", index);
+            let status = self.acss_ab_send.send((index,batch)).await;
             if status.is_err(){
-                log::error!("Failed to send random values to ACSS protocol for batch {} because of error: {:?}", batch, status.err().unwrap());
-            }
-            let status = self.sh2t_send.send((batch,zeros)).await;
-            if status.is_err(){
-                log::error!("Failed to send random values to Sh2t protocol for batch {} because of error: {:?}", batch, status.err().unwrap());
+                log::error!("Failed to send random values to ACSS protocol for batch {} because of error: {:?}", index, status.err().unwrap());
             }
         }
+
+        for (index, batch) in zeros.into_iter().enumerate(){
+            // Create random values
+            log::info!("Initiating 2t sharing in preprocessing phase for batch {}", index);
+            let status = self.sh2t_send.send((index,batch)).await;
+            if status.is_err(){
+                log::error!("Failed to send random values to Sh2t protocol for batch {} because of error: {:?}", index, status.err().unwrap());
+            }
+        }
+
         // Random masks for output wires
         let mut random_masks = Vec::new();
         for _ in 0..self.output_mask_size{
@@ -97,7 +117,7 @@ impl Context{
         }
         let shares_batches_map = self.rand_sharings_state.shares.get_mut(&sender).unwrap();
         let share_2t_batches_map = self.rand_sharings_state.sh2t_shares.get_mut(&sender).unwrap();
-        if shares_batches_map.len() == self.tot_batches && share_2t_batches_map.len() == self.tot_batches && self.output_mask_state.avss_shares.contains_key(&sender){
+        if shares_batches_map.len() == 4*self.tot_batches && share_2t_batches_map.len() == self.tot_batches && self.output_mask_state.avss_shares.contains_key(&sender){
             // ACSS is complete. Wait for sh2t sharings now
             log::info!("ACSS, Sh2t, and AVSS completed for sender {} for all batches", sender);
             log::info!("Batches info: {:?} {:?}", shares_batches_map.keys(),share_2t_batches_map.keys());
@@ -133,74 +153,49 @@ impl Context{
                 let vandermonde_matrix = Self::vandermonde_matrix(x_values, 2*self.num_faults+1);
                 
                 // Build party-accumulated share vectors
-                let mut acs_indexed_share_groups: Vec<Vec<LargeField>> = Vec::new();
-                let mut acs_indexed_2t_share_groups: Vec<Vec<LargeField>> = Vec::new();
-                
-                (0..self.tot_batches*self.per_batch).into_iter().for_each(|_|{
-                    acs_indexed_share_groups.push(Vec::new());
-                    acs_indexed_2t_share_groups.push(Vec::new());
-                });
+                let acs_indexed_group_batch_1 = self.gen_random_sharings(0);
+                let acs_indexed_group_batch_2 = self.gen_random_sharings(self.tot_batches);
+                let acs_indexed_group_batch_3 = self.gen_random_sharings(2*self.tot_batches);
+                let acs_indexed_group_batch_4 = self.gen_random_sharings(3*self.tot_batches);
 
-                for party in 0..self.num_nodes{
-                    if self.rand_sharings_state.acs_output.contains(&party){
-                        // First sharing
-                        let mut index: usize = 0;
-                        
-                        let shares = self.rand_sharings_state.shares.get(&party).unwrap();
-                        let shares_2t = self.rand_sharings_state.sh2t_shares.get(&party).unwrap();
-                        
-                        for batch in 0..self.tot_batches{
-                            if !shares.contains_key(&batch){
-                                log::error!("Batch {} not found in shares_batch", batch);
-                            }
-                            else{
-                                let shares_batch = shares.get(&batch).unwrap();
-                                for share in shares_batch{
-                                    acs_indexed_share_groups[index].push(share.clone());
-                                    index += 1;
-                                }
-                            }
-                        }
-
-                        index = 0;
-                        for batch in 0..self.tot_batches{
-                            if !shares_2t.contains_key(&batch){
-                                log::error!("Batch {} not found in shares_batch for 2t shares", batch);
-                            }
-                            else{
-                                let shares_batch = shares_2t.get(&batch).unwrap();
-                                for share in shares_batch{
-                                    acs_indexed_2t_share_groups[index].push(share.clone());
-                                    index += 1;
-                                }
-                            }
-                        }
-                    }
-                }
+                let acs_indexed_2t_share_groups = self.gen_2t_sharings();
 
                 // Multiply each vector with the indexed vector in the Vandermonde matrix
-                let mut rand_sharings_mult: Vec<LargeField> = acs_indexed_share_groups.into_par_iter().map(|x| {
+                let rand_sharings_mult_b1: Vec<LargeField> = acs_indexed_group_batch_1.into_par_iter().map(|x| {
                     let res = Self::matrix_vector_multiply(&vandermonde_matrix, &x);
                     res
                 }).flatten().collect();
-
+                let rand_sharings_mult_b2: Vec<LargeField> = acs_indexed_group_batch_2.into_par_iter().map(|x| {
+                    let res = Self::matrix_vector_multiply(&vandermonde_matrix, &x);
+                    res
+                }).flatten().collect();
+                
+                let mut rand_sharings_mult: Vec<LargeField> = acs_indexed_group_batch_3.into_par_iter().map(|x| {
+                    let res = Self::matrix_vector_multiply(&vandermonde_matrix, &x);
+                    res
+                }).flatten().collect();
+                let rand_sharings_mult_b4: Vec<LargeField> = acs_indexed_group_batch_4.into_par_iter().map(|x| {
+                    let res = Self::matrix_vector_multiply(&vandermonde_matrix, &x);
+                    res
+                }).flatten().collect();
+                rand_sharings_mult.extend(rand_sharings_mult_b4);
 
                 let rand_sharings_2t_mult: Vec<LargeField> = acs_indexed_2t_share_groups.into_par_iter().map(|x| {
                     let res = Self::matrix_vector_multiply(&vandermonde_matrix, &x);
                     res
                 }).flatten().collect();
 
-
-                log::info!(" Completed preprocessing and generated {} random sharings and {} random 2t sharings ", rand_sharings_mult.len(), rand_sharings_2t_mult.len());
-
+                log::info!(" Completed preprocessing and generated {} random sharings and {} random 2t sharings ", 
+                        rand_sharings_mult_b1.len()*4, rand_sharings_2t_mult.len());
+                self.rand_sharings_state.rand_sharings_inputs = (rand_sharings_mult_b1, rand_sharings_mult_b2);
+                
                 // Allocate 2n sharings to common coins
                 let rand_sharings_coin =  rand_sharings_mult.split_off(rand_sharings_mult.len()- self.total_sharings_for_coins);
                 
                 // Add sharings and coins to state
                 self.rand_sharings_state.rand_sharings_mult.extend(rand_sharings_mult);
                 self.rand_sharings_state.rand_sharings_coin.extend(rand_sharings_coin);
-                self.rand_sharings_state.rand_2t_sharings_mult.extend(rand_sharings_2t_mult);
-                
+                self.rand_sharings_state.rand_2t_sharings_mult.extend(rand_sharings_2t_mult);    
                 
                 // Clear acss sharings now
                 self.rand_sharings_state.shares.clear();
@@ -208,7 +203,6 @@ impl Context{
 
                 self.generate_random_mask_shares(self.rand_sharings_state.acs_output.clone(),vandermonde_matrix).await;
                 self.run_online_phase().await;
-                //self.terminate("Term".to_string()).await;
             }
         }
     }
@@ -242,6 +236,60 @@ impl Context{
             .collect()
     }
 
+    pub fn gen_random_sharings(&self, offset: usize)-> Vec<Vec<LargeField>>{
+        let mut acs_indexed_share_groups: Vec<Vec<LargeField>> = Vec::new();
+        
+        (0..self.tot_batches*self.per_batch).into_iter().for_each(|_|{
+            acs_indexed_share_groups.push(Vec::new());
+        });
+        for party in 0..self.num_nodes{
+            if self.rand_sharings_state.acs_output.contains(&party){
+                // First sharing
+                let shares = self.rand_sharings_state.shares.get(&party).unwrap();
+                let mut index: usize = 0;
+                for batch in offset..(self.tot_batches+offset){
+                    if !shares.contains_key(&batch){
+                        log::error!("Batch {} not found in shares_batch", batch);
+                    }
+                    else{
+                        let shares_batch = shares.get(&batch).unwrap();
+                        for share in shares_batch{
+                            acs_indexed_share_groups[index].push(share.clone());
+                            index += 1;
+                        }
+                    }
+                }       
+            }
+        }
+        acs_indexed_share_groups
+    }
+
+    pub fn gen_2t_sharings(&self) -> Vec<Vec<LargeField>>{
+        let mut acs_indexed_2t_share_groups: Vec<Vec<LargeField>> = Vec::new();
+        (0..self.tot_batches*self.per_batch).into_iter().for_each(|_|{
+            acs_indexed_2t_share_groups.push(Vec::new());
+        });
+        for party in 0..self.num_nodes{
+            if self.rand_sharings_state.acs_output.contains(&party){
+                // Sh2t sharing
+                let shares_2t = self.rand_sharings_state.sh2t_shares.get(&party).unwrap();
+                let mut index = 0;
+                for batch in 0..self.tot_batches{
+                    if !shares_2t.contains_key(&batch){
+                        log::error!("Batch {} not found in shares_batch for 2t shares", batch);
+                    }
+                    else{
+                        let shares_batch = shares_2t.get(&batch).unwrap();
+                        for share in shares_batch{
+                            acs_indexed_2t_share_groups[index].push(share.clone());
+                            index += 1;
+                        }
+                    }
+                }
+            }
+        }
+        acs_indexed_2t_share_groups
+    }
     //Invoke this function once you terminate the protocol
     pub async fn terminate(&mut self, data: String) {
         let rbc_sync_msg = RBCSyncMsg{
