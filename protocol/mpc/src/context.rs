@@ -325,17 +325,6 @@ impl Context {
             log::error!("Error spawning status_sh2t because of {:?}", status_sh2t.err().unwrap());
         }
 
-        let status_acs = acs::Context::spawn(
-            acs_config,
-            acs_inp_recv,
-            acs_out_send,
-            false,
-        );
-        
-        if status_acs.is_err() {
-            log::error!("Error spawning acs because of {:?}", status_acs.err().unwrap());
-        }
-
         let ctrbc_status = ctrbc::Context::spawn(
             ctrbc_config,
             ctrbc_recv,
@@ -345,6 +334,17 @@ impl Context {
 
         if ctrbc_status.is_err() {
             log::error!("Error spawning CTRBC because of {:?}", ctrbc_status.err().unwrap());
+        }
+
+        let status_acs = acs::Context::spawn(
+            acs_config,
+            acs_inp_recv,
+            acs_out_send,
+            false,
+        );
+        
+        if status_acs.is_err() {
+            log::error!("Error spawning acs because of {:?}", status_acs.err().unwrap());
         }
         
         let status_acs_2 = acs::Context::spawn(

@@ -155,6 +155,7 @@ impl Context{
                 let masked_outputs = masked_outputs.unwrap();
                 let unmasked_outputs: Vec<LargeField> = masked_outputs.into_iter().zip(rand_recon_values.into_iter()).map(|(output,mask)| output-mask).collect();
                 log::info!("Unmasked output wires, protocol completed successfully with output {:?}", unmasked_outputs);
+                self.terminate("output".to_string()).await;
             }
         }
     }
