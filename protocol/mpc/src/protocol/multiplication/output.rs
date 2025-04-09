@@ -15,7 +15,7 @@ impl Context{
             return;
         }
         
-        let mut output_wire_shares = self.mult_state.output_layer.output_wire_shares.get(&self.myid).unwrap().clone().1;
+        let mut output_wire_shares = self.mult_state.output_layer.output_wire_shares.get_mut(&self.myid).unwrap().clone().1;
         // Add random masks
         let mut random_mask_shares = Vec::with_capacity(output_wire_shares.len());
         for output_wire_share in output_wire_shares.iter_mut(){
@@ -27,6 +27,8 @@ impl Context{
             *output_wire_share += random_mask_share.clone();
             random_mask_shares.push(random_mask_share);
         }
+        let evaluation_point = Self::get_share_evaluation_point(self.myid, self.use_fft, self.roots_of_unity.clone());
+        self.mult_state.output_layer.output_wire_shares.insert(self.myid, (evaluation_point, output_wire_shares.clone()));
         // Reconstruct the output
         let output_masks_ser = output_wire_shares.iter()
             .map(|x| x.to_bytes_be())

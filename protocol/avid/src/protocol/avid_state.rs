@@ -15,9 +15,9 @@ pub struct AVIDState{
     pub deliveries: HashMap<Hash,HashMap<Replica,AVIDShard>>,
     pub message: Option<Vec<u8>>,
 
-    pub echos: HashMap<Hash, HashSet<usize>>,
+    pub echos: (HashMap<Hash, HashSet<usize>>, HashMap<Hash, HashSet<usize>>),
     // root Hash followed by all other composing hashes
-    pub echo_roots: Option<(Hash,HashSet<Hash>)>,
+    pub agreed_root: Option<Hash>,
 
     pub readys: HashMap<Hash, HashSet<usize>>,
 
@@ -34,8 +34,8 @@ impl AVIDState{
             message: None,
             deliveries: HashMap::default(),
 
-            echos: HashMap::default(), 
-            echo_roots: None, 
+            echos: (HashMap::default(), HashMap::default()), 
+            agreed_root: None, 
             
             readys: HashMap::default(), 
             

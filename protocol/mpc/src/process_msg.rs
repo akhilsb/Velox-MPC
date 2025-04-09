@@ -67,9 +67,9 @@ impl Context {
                     log::debug!("Received ReconstructOutputMasks message");
                     self.handle_random_mask_shares(wrapper_msg.sender, _origin, _ser_shares,_ser_nonce, _ser_blinding).await;
                 },
-                ProtMsg::ReconstructMultSharings(shares, index) => {
+                ProtMsg::ReconstructMultSharings(_shares, _index) => {
                     log::debug!("Received ReconstructMultSharings message");
-                    self.handle_reconstruct_mult_sharings(shares, index, wrapper_msg.sender).await;
+                    //self.handle_reconstruct_mult_sharings(shares, index, wrapper_msg.sender).await;
                 },
             }
         } else {

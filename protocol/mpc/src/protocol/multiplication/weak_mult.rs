@@ -88,26 +88,14 @@ impl Context{
                 // Random bit sharings, add them to mix_circuit state
                 self.mix_circuit_state.rand_bit_sharings.extend(shares_next_depth);
                 self.terminate("Preprocessing".to_string()).await;
-                // Start next depth and real circuit execution                
+                // Start next depth and real circuit execution
+                self.init_mixing().await;
             }
-            else if depth < self.max_depth{
-                // Start the next depth multiplication here     
-            }
-            else if depth == self.max_depth{
-                // TODO: Initiate next depth multiplication here. 
-                // Trigger output reconstruction
-                // Add output wires to the multiplication state as well. 
-                log::info!("Multiplication terminated at depth {}, adding random masks to output wires",depth);
-                // TODO: make all these addition and multiplication wires
-                self.mult_state.output_layer.output_wire_shares.insert(
-                    self.myid, (
-                        Self::get_share_evaluation_point(self.myid, self.use_fft, self.roots_of_unity.clone())
-                        ,shares_next_depth
-                    )
-                );
-                log::info!("Starting verification of multiplications");
-                // Start verification from here
-                self.delinearize_mult_tuples().await;
+            else if depth <= self.max_depth{
+                // Start the next depth multiplication here
+                log::info!("Terminated multiplication at mixing depth {}, initializing next mixing level", depth);
+                self.mix_circuit_state.mult_result.insert(depth, shares_next_depth.clone());
+                self.verify_mixing_level_termination(depth).await;
             }
             else if depth > self.max_depth{
                 // Temporary

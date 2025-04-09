@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crypto::aes_hash::{HashState, Proof};
 
 use crypto::hash::{do_hash, Hash};
@@ -7,22 +9,33 @@ use types::{Replica};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AVIDShard{
-    
     pub id: usize,
+    pub origin: Replica,
     pub recipient: Replica,
     pub shard: Vec<u8>,
-    pub proof: Proof
-
+    pub proof: Proof,
+    pub master_proof: Proof,
 }
 
 impl AVIDShard{
     pub fn verify(&self, hash_state: &HashState)->bool{
         let hash_of_shard: [u8; 32] = do_hash(self.shard.as_slice());
-        return hash_of_shard == self.proof.item().clone() && self.proof.validate(hash_state);
+        // log::info!("Hash of shard {:?}, 
+        // Hash of shard from proof {:?}, root of proof {:?},
+        // Hash of shard from master proof {:?}", 
+        //     hash_of_shard, 
+        //     self.proof.item(), 
+        //     self.proof.root(),
+        //     self.master_proof.item());
+        return 
+            (hash_of_shard == self.proof.item()) && 
+            self.proof.validate(hash_state) && 
+            (self.proof.root() == self.master_proof.item()) && 
+            self.master_proof.validate(hash_state);
     }
 
-    pub fn index_from_shard(&self)-> AVIDIndex{
-        AVIDIndex { id: self.id, recipient: self.recipient, root: self.proof.root() }
+    pub fn index_from_shard(&self)-> AVIDIndexMsg{
+        AVIDIndexMsg { id: self.id, recipient: self.recipient, proof: self.master_proof.clone(), origin:  self.origin}
     }
 }
 
@@ -40,14 +53,14 @@ impl AVIDMsg {
     pub fn verify_mr_proofs(&self, hf: &HashState) -> bool {
         let mut state = true;
         // 2. Validate Merkle Proofs
-        let mut hashes_vec: Vec<u8> = Vec::new();
+        let mut hashes_vec: HashSet<Hash> = HashSet::default();
 
         for avid_state in self.shards.iter(){
             state = state&& avid_state.verify(hf);
-            hashes_vec.extend(avid_state.proof.root());
+            hashes_vec.insert(avid_state.master_proof.root());
         }
 
-        state = state && (do_hash(&hashes_vec.as_slice()) == self.concise_root);
+        state = state && hashes_vec.len() == 1;
         return state;
     }
 
@@ -65,70 +78,40 @@ impl AVIDMsg {
         }
     }
 
-    pub fn indices(&self) -> AVIDIndexMsg{
+    pub fn indices(&self) -> Vec<AVIDIndexMsg>{
         
         let mut index_vec = Vec::new();
         for shard in &self.shards{
             index_vec.push(shard.index_from_shard());
         }
-        AVIDIndexMsg { 
-            shard_indices: index_vec, 
-            origin: self.origin, 
-            concise_root: self.concise_root 
-        }
+        index_vec
     }
     
 }
 
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AVIDIndex{
-
-    pub id: usize,
-    pub recipient: Replica,
-    pub root: Hash
-
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AVIDIndexMsg{
-
-    pub shard_indices : Vec<AVIDIndex>,
+    pub id: usize,
     pub origin: Replica,
-    pub concise_root: Hash
-
+    pub recipient: Replica,
+    pub proof: Proof,
 }
 
 impl AVIDIndexMsg{
 
-    pub fn new(avidmsg: &AVIDMsg)-> AVIDIndexMsg{
+    pub fn new(avidmsg: &AVIDMsg)-> Vec<AVIDIndexMsg>{
         
-        let mut shard_indices = Vec::new();
+        let mut index_msgs = Vec::new();
         for shard in avidmsg.shards.iter(){
-            shard_indices.push(AVIDIndex{
+            index_msgs.push(AVIDIndexMsg{
                 id: shard.id,
                 recipient: shard.recipient,
-                root: shard.proof.root()
+                proof: shard.master_proof.clone(),
+                origin: avidmsg.origin
             });
         }
-        AVIDIndexMsg { 
-            shard_indices: shard_indices, 
-            origin: avidmsg.origin, 
-            concise_root: avidmsg.concise_root 
-        }
-
+        index_msgs
     }
-
-    pub fn verify_root(&self) -> bool{
-
-        let mut hash_vec = Vec::new();
-        for index in &self.shard_indices{
-            hash_vec.extend(index.root.clone());
-        }
-
-        return self.concise_root == do_hash(&hash_vec.as_slice());
-    }
-
 }
 /*
 this is how the rbc protocol works
@@ -146,6 +129,5 @@ pub enum ProtMsg {
     // ECHO contains only indices and roots. 
     Echo(AVIDIndexMsg,usize),
     // READY contains only indices and roots.
-    Ready(AVIDIndexMsg,usize),
-    Deliver(AVIDShard,Replica,usize)
+    Ready(Hash, Replica, Option<AVIDShard>,usize),
 }

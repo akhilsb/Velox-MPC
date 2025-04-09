@@ -23,7 +23,7 @@ use crate::AVIDState;
 
 use super::{Handler};
 use super::{ProtMsg};
-use crypto::aes_hash::HashState;
+use crypto::{aes_hash::HashState, hash::Hash};
 
 pub struct Context {
     /// Networking context
@@ -57,6 +57,8 @@ pub struct Context {
     /// Input and output message queues for Reliable Broadcast
     pub inp_avid: Receiver<Vec<(Replica,Option<Vec<u8>>)>>,
     pub out_avid: Sender<(usize, Replica,Option<Vec<u8>>)>,
+
+    pub zero_hash: Hash,
 }
 
 impl Context {
@@ -118,7 +120,9 @@ impl Context {
                 max_id: rbc_start_id,
                 
                 inp_avid: input_msgs,
-                out_avid: output_msgs
+                out_avid: output_msgs,
+
+                zero_hash: [0u8; 32],
             };
 
             // Populate secret keys from config

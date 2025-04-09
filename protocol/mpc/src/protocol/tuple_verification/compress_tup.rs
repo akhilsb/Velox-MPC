@@ -15,7 +15,12 @@ impl Context{
         let elements_per_chunk;
         if x_vector.len() >= self.compression_factor{
             // After reaching a threshold level, 
-            elements_per_chunk = x_vector.len()/self.compression_factor;
+            if x_vector.len() % self.compression_factor != 0{
+                elements_per_chunk = (x_vector.len()/self.compression_factor)+1;
+            }
+            else{
+                elements_per_chunk = x_vector.len()/self.compression_factor;
+            }
         }
         else{
             elements_per_chunk = 1;
@@ -23,6 +28,21 @@ impl Context{
         let mut x_vec_chunks: Vec<Vec<LargeField>> = x_vector.chunks(elements_per_chunk).into_iter().map(|chunk| chunk.to_vec()).collect();
         let mut y_vec_chunks: Vec<Vec<LargeField>> = y_vector.chunks(elements_per_chunk).into_iter().map(|chunk| chunk.to_vec()).collect();
         let mult_value = agg_val;
+
+        // Ensure each vector is of the same size for polynomial interpolation
+        x_vec_chunks.iter_mut().for_each(|x|{
+            if x.len() < elements_per_chunk{
+                let new_chunk = vec![LargeField::zero(); elements_per_chunk - x.len()];
+                x.extend(new_chunk);
+            }
+        });
+
+        y_vec_chunks.iter_mut().for_each(|x|{
+            if x.len() < elements_per_chunk{
+                let new_chunk = vec![LargeField::zero(); elements_per_chunk - x.len()];
+                x.extend(new_chunk);
+            }
+        });
 
         if !self.verf_state.ex_compr_state.contains_key(&depth){
             let ex_compr_state = ExComprState::new(depth);
@@ -322,8 +342,9 @@ impl Context{
             if a_sec*b_sec == c_sec{
                 log::info!("handle_reconstruct_verf_output_sharing: Multiplication constraint holds.");
                 // Output from here
-                self.terminate("data".to_string()).await;
+                self.terminate("verification".to_string()).await;
                 // Code goes back to the output phase from here
+                self.reconstruct_output().await;
             }
             else{
                 log::error!("handle_reconstruct_verf_output_sharing: Multiplication constraint does not hold, with {} {}", a_sec* b_sec, c_sec);

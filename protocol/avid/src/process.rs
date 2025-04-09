@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
 use super::{ProtMsg};
-use crate::{context::Context, msg::AVIDMsg};
+use crate::{context::Context};
 use crypto::hash::verf_mac;
-use network::{plaintcp::CancelHandler, Acknowledgement};
 use types::{WrapperMsg};
 
 impl Context {
@@ -38,20 +37,15 @@ impl Context {
                     log::debug!("Received Echo for instance id {} from node : {}", instance_id, main_msg.origin);
                     self.handle_echo(main_msg, wrapper_msg.sender,instance_id).await;
                 }
-                ProtMsg::Ready(main_msg, instance_id) => {
+                ProtMsg::Ready(root_hash,origin, shard, instance_id) => {
                     // RBC initialized
-                    log::debug!("Received Ready for instance id {} from node : {}", instance_id, main_msg.origin);
-                    self.handle_ready(main_msg, wrapper_msg.sender,instance_id).await;
+                    log::debug!("Received Ready for instance id {} from node : {}", instance_id, origin);
+                    self.handle_ready(root_hash,origin, shard,instance_id, wrapper_msg.sender).await;
                 }
                 ProtMsg::Init(main_msg, instance_id) => {
                     // RBC initialized
                     log::debug!("Received Init for instance id {} from node : {}", instance_id, main_msg.origin);
                     self.handle_init(main_msg,instance_id).await;
-                },
-                ProtMsg::Deliver(avid_shard, origin, instance_id) => {
-                    
-                    log::debug!("Received Deliver for instance id {} from node : {}", instance_id, origin);
-                    self.handle_deliver(avid_shard, origin, wrapper_msg.sender, instance_id).await;
                 }
             }
         } else {
@@ -59,30 +53,6 @@ impl Context {
                 "MAC Verification failed for message {:?}",
                 wrapper_msg.protmsg
             );
-        }
-    }
-
-    // Invoke this function once you terminate the protocol
-    pub async fn terminate(&mut self, avid_opt:Option<AVIDMsg>, instance_id: usize) {
-        //let fragment = avid_context.fragments.clone();
-        //let avid_msg = fragment.unwrap();
-        if avid_opt.is_some(){
-            let avid_msg= avid_opt.unwrap();
-            for avid_shard in avid_msg.shards{    
-                let recipient = avid_shard.recipient.clone();
-                if recipient == self.myid{
-                    self.handle_deliver(avid_shard, avid_msg.origin, self.myid, instance_id).await;
-                }
-                else{
-    
-                    let sec_key = self.sec_key_map.get(&recipient).unwrap().clone();
-                    let protocol_msg = ProtMsg::Deliver(avid_shard, avid_msg.origin, instance_id);
-                    let wrapper_msg = WrapperMsg::new(protocol_msg.clone(),self.myid,&sec_key);
-                    let cancel_handler: CancelHandler<Acknowledgement> = self.net_send.send(recipient, wrapper_msg).await;
-                    self.add_cancel_handler(cancel_handler);
-                
-                }
-            }
         }
     }
 }

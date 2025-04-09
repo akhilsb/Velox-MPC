@@ -16,12 +16,12 @@ pub struct Syncer{
     pub rbc_id:usize,
     pub rbc_msgs: HashMap<usize,String>,
     pub rbc_start_times: HashMap<usize,u128>,
-    pub rbc_complete_times: HashMap<usize,HashMap<Replica,u128>>,
-    pub rbc_comp_values: HashMap<usize,HashSet<String>>,
+    pub rbc_complete_times: HashMap<String,HashMap<Replica,u128>>,
+    pub rbc_comp_values: HashMap<String,HashSet<String>>,
 
     //pub broadcast_msgs: Vec<String>,
     
-    pub sharing_complete_times: HashMap<Replica,u128>,
+    pub sharing_complete_times: HashMap<Replica,HashMap<String,u128>>,
     pub recon_start_time: u128,
     pub net_map: FnvHashMap<Replica,String>,
     pub alive: HashSet<Replica>,
@@ -124,18 +124,17 @@ impl Syncer{
                             log::debug!("Node {} started the protocol",msg.sender);
                         },
                         SyncState::COMPLETED=>{
-                            log::info!("Got COMPLETED message from node {}",msg.sender);
-                            
                             // deserialize message
                             let rbc_msg: RBCSyncMsg = bincode::deserialize(&msg.value).expect("Unable to deserialize message received from node");
-                            
-                            let latency_map = self.rbc_complete_times.entry(rbc_msg.id).or_default();
+                            log::info!("Got {} message from node {}",rbc_msg.msg,msg.sender);
+                            let latency_map = self.rbc_complete_times.entry(rbc_msg.msg.clone()).or_default();
                             latency_map.insert(msg.sender, SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_millis());
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis()
+                            );
                             
-                            let value_set = self.rbc_comp_values.entry(rbc_msg.id).or_default();
+                            let value_set = self.rbc_comp_values.entry(rbc_msg.msg.clone()).or_default();
                             value_set.insert(rbc_msg.msg.to_string());
                             if latency_map.len() == self.num_nodes{
 

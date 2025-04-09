@@ -47,6 +47,7 @@ pub struct Context {
     exit_rx: oneshot::Receiver<()>,
     
     pub k_value: usize,
+    pub log_k: usize,
     pub per_batch_maximum: usize,
     pub tot_batches: usize,
 
@@ -99,6 +100,7 @@ pub struct Context {
     pub roots_of_unity: Vec<LargeField>,
 
     // Protocol parameters
+    pub total_sharings: usize,
     pub max_depth: usize,
     pub output_mask_size: usize,
 
@@ -215,8 +217,8 @@ impl Context {
         let log_k = (u64::BITS - k.leading_zeros() -1) as usize;
         let k = k as usize;
 
-        let tot_sharings = (((k/2)*log_k*log_k)/(config.num_faults+1))+1;
-        let num_batches = tot_sharings/per_batch;
+        let tot_sharings = (((k)*log_k*log_k)/(config.num_faults+1))+1;
+        let num_batches = (tot_sharings.max(per_batch))/per_batch;
         // Ensure this is a power of 2. 
         let inputs: Vec<LargeField> = (0..k).into_iter().map(|x| LargeField::from(x as u64)).collect();
         log::info!("Generating {} random sharings and proposing {} sharings over {} batches for mixing {} inputs", (k/2)*log_k*log_k, tot_sharings, num_batches, k);
@@ -239,10 +241,11 @@ impl Context {
                 max_id: rbc_start_id,
 
                 k_value: k,
+                log_k: log_k,
                 per_batch_maximum: per_batch,
                 tot_batches: num_batches,
 
-                total_sharings_for_coins: 2*config.num_nodes,
+                total_sharings_for_coins: 10*config.num_nodes,
                 
                 acss_ab_send: acss_ab_send,
                 acss_ab_out_recv: acss_ab_out_recv,
@@ -276,12 +279,13 @@ impl Context {
                 use_fft: use_fft,
                 roots_of_unity: acss_ab::Context::gen_roots_of_unity(config.num_nodes),
 
-                max_depth: 200,
-                output_mask_size: 500,
+                total_sharings: tot_sharings,
+                max_depth: log_k*log_k,
+                output_mask_size: 2*k,
 
                 preprocessing_mult_depth: 0,
                 delinearization_depth: 5000, 
-                compression_factor: 10,
+                compression_factor: 5,
                 multiplication_switch_threshold: 0
             };
 

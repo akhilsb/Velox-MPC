@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::{Add, Mul}};
 
 use lambdaworks_math::{traits::ByteConversion};
-use protocol::{rand_field_element, LargeField, LargeFieldSer};
+use protocol::{LargeField, LargeFieldSer, rand_field_element};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use types::{Replica, RBCSyncMsg, SyncMsg, SyncState};
 use crate::{context::Context};
@@ -9,7 +9,7 @@ use crate::{context::Context};
 impl Context{
     pub async fn init_rand_sh(&mut self){
         let num_batches = self.tot_batches;
-        let batch_size = self.per_batch_maximum;
+        let batch_size = self.per_batch_maximum.min(self.total_sharings);
         
         // Start ACSS with abort and 2t-sharing simultaneously for each batch
         // Input sharings - Needed for generating t-sharings of +1/-1 for mixing circuit. 
@@ -28,11 +28,7 @@ impl Context{
         }).collect();
 
         deg_t_batches.extend(batches_mult.clone());
-        let zeros: Vec<Vec<LargeFieldSer>> = (0..num_batches).into_par_iter().map(|_| {
-            let rand_values: Vec<LargeFieldSer> = (0..batch_size).into_par_iter().map(|_| LargeField::zero().to_bytes_be()).collect();
-            return rand_values;
-        }).collect();
-
+        
         // Share inputs as well using ACSS-Abort. 
         let num_input_sharings = (self.k_value/(self.num_faults+1))+1;
         let input_sharings: Vec<LargeFieldSer> = (0..num_input_sharings).into_par_iter().map(|_| rand_field_element().to_bytes_be()).collect();
@@ -46,6 +42,11 @@ impl Context{
                 log::error!("Failed to send random values to ACSS protocol for batch {} because of error: {:?}", index, status.err().unwrap());
             }
         }
+
+        let zeros: Vec<Vec<LargeFieldSer>> = (0..3*num_batches).into_par_iter().map(|_| {
+            let rand_values: Vec<LargeFieldSer> = (0..batch_size).into_par_iter().map(|_| LargeField::zero().to_bytes_be()).collect();
+            return rand_values;
+        }).collect();
 
         for (index, batch) in zeros.into_iter().enumerate(){
             // Create random values
@@ -125,7 +126,7 @@ impl Context{
         }
         let shares_batches_map = self.rand_sharings_state.shares.get_mut(&sender).unwrap();
         let share_2t_batches_map = self.rand_sharings_state.sh2t_shares.get_mut(&sender).unwrap();
-        if shares_batches_map.len() == (4*self.tot_batches+1) && share_2t_batches_map.len() == self.tot_batches && self.output_mask_state.avss_shares.contains_key(&sender){
+        if shares_batches_map.len() == (4*self.tot_batches+1) && share_2t_batches_map.len() == 3*self.tot_batches && self.output_mask_state.avss_shares.contains_key(&sender){
             // ACSS is complete. Wait for sh2t sharings now
             log::info!("ACSS, Sh2t, and AVSS completed for sender {} for all batches", sender);
             log::info!("Batches info: {:?} {:?}", shares_batches_map.keys(),share_2t_batches_map.keys());
@@ -217,7 +218,7 @@ impl Context{
                 self.rand_sharings_state.sh2t_shares.clear();
 
                 self.generate_random_mask_shares(self.rand_sharings_state.acs_output.clone(),vandermonde_matrix).await;
-                self.run_online_phase().await;
+                self.init_random_shared_bits_preparation().await;
             }
         }
     }
@@ -307,7 +308,7 @@ impl Context{
 
     pub fn gen_2t_sharings(&self) -> Vec<Vec<LargeField>>{
         let mut acs_indexed_2t_share_groups: Vec<Vec<LargeField>> = Vec::new();
-        (0..self.tot_batches*self.per_batch_maximum).into_iter().for_each(|_|{
+        (0..3*self.tot_batches*self.per_batch_maximum).into_iter().for_each(|_|{
             acs_indexed_2t_share_groups.push(Vec::new());
         });
         for party in 0..self.num_nodes{
