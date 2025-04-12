@@ -213,7 +213,7 @@ impl Context {
 
         let use_fft = false;
 
-        let k = 1024 as u64;
+        let k = 512 as u64;
         let log_k = (u64::BITS - k.leading_zeros() -1) as usize;
         let k = k as usize;
 

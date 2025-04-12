@@ -56,6 +56,8 @@ impl SingleDepthState{
 }
 
 pub struct OutputLayerState{
+    pub output_shares: Option<(LargeField, Vec<LargeField>)>,
+
     pub output_wire_shares: HashMap<usize, (LargeField,Vec<LargeField>)>,
     pub reconstructed_masked_outputs: Option<Vec<LargeField>>,
 
@@ -69,6 +71,8 @@ pub struct OutputLayerState{
 impl OutputLayerState{
     pub fn new() -> Self {
         OutputLayerState{
+            output_shares: None,
+
             output_wire_shares: HashMap::default(),
             reconstructed_masked_outputs: None,
 

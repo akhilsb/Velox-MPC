@@ -64,12 +64,10 @@ impl Context{
             // Add output wires to the multiplication state as well. 
             log::info!("Multiplication terminated at depth {}, adding random masks to output wires",depth);
             // TODO: make all these addition and multiplication wires
-            self.mult_state.output_layer.output_wire_shares.insert(
-                self.myid, (
-                    Self::get_share_evaluation_point(self.myid, self.use_fft, self.roots_of_unity.clone())
-                    ,next_depth_wires
-                )
-            );
+            self.mult_state.output_layer.output_shares = Some((
+                Self::get_share_evaluation_point(self.myid, self.use_fft, self.roots_of_unity.clone())
+                ,next_depth_wires
+            ));
             self.terminate("Online".to_string()).await;
             log::info!("Starting verification of multiplications");
             // Start verification from here

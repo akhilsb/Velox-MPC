@@ -10,12 +10,12 @@ use crate::{Context, msg::ProtMsg};
 impl Context{
     // Last layer of the protocol
     pub async fn reconstruct_output(&mut self){
-        if !self.mult_state.output_layer.output_wire_shares.contains_key(&self.myid){
+        if self.mult_state.output_layer.output_shares.is_none(){
             log::error!("Output layer shares are missing, abandoning protocol");
             return;
         }
         
-        let mut output_wire_shares = self.mult_state.output_layer.output_wire_shares.get_mut(&self.myid).unwrap().clone().1;
+        let mut output_wire_shares = self.mult_state.output_layer.output_shares.clone().unwrap().1;
         // Add random masks
         let mut random_mask_shares = Vec::with_capacity(output_wire_shares.len());
         for output_wire_share in output_wire_shares.iter_mut(){
@@ -47,7 +47,7 @@ impl Context{
         
         self.mult_state.output_layer.output_wire_shares.insert(sender, (evaluation_point, shares_lf));
 
-        if self.mult_state.output_layer.output_wire_shares.len() == self.num_nodes - self.num_faults{
+        if self.mult_state.output_layer.output_wire_shares.len() >= self.num_nodes - self.num_faults && self.mult_state.output_layer.reconstructed_masked_outputs.is_none(){
             // Reconstruct output
             let mut evaluation_points = Vec::with_capacity(self.num_nodes);
             let mut evaluations = Vec::new();
@@ -111,7 +111,6 @@ impl Context{
             return;
         }
         else{
-
             let mut output_hash_set = HashSet::new();
             let mut successful_parties = 0;
             let mut aborted_parties = 0;
