@@ -1,0 +1,18 @@
+{
+    "key": {
+        "name": "aws",
+        "path": "/home/akhil/.ssh/aws"
+    },
+    "port": 5000,
+    "client_base_port": 6000,
+    "client_run_port": 6500,
+    "repo": {
+        "name": "acss-rs",
+        "url": "https://github.com/akhilsb/fair-async-mpc-rs.git",
+        "branch": "master"
+    },
+    "instances": {
+        "type": "c5.large",
+        "regions": ["us-east-1"]
+    }
+}

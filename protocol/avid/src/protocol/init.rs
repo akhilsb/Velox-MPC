@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use consensus::get_shards;
 use crypto::{
     aes_hash::{MerkleTree, HashState},
-    hash::{do_hash, Hash}, encrypt,
+    hash::{do_hash, Hash},
 };
 use types::{WrapperMsg, Replica};
 

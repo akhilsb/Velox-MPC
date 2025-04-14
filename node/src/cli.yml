@@ -36,12 +36,17 @@ args:
     - batches:
         short: t
         long: batches
-        help: Number of batches to split secrets
+        help: Batch size for message mixing
         takes_value: true
     - per:
         short: r
         long: per
         help: Number of secrets to pack into each batch
+        takes_value: true
+    - comp:
+        short: o
+        long: comp
+        help: Compression factor for multiplication gate verification
         takes_value: true
     # - bfile:
     #     short: b

@@ -114,7 +114,8 @@ impl Context {
     pub fn spawn(
         config: Node,
         per_batch: usize,
-        _tot_batches: usize,
+        mixing_batch_size: usize,
+        compression_factor: usize,
         _byz: bool
     ) -> anyhow::Result<oneshot::Sender<()>> {
         // Add a separate configuration for RBC service. 
@@ -213,7 +214,7 @@ impl Context {
 
         let use_fft = false;
 
-        let k = 512 as u64;
+        let k = mixing_batch_size as u64;
         let log_k = (u64::BITS - k.leading_zeros() -1) as usize;
         let k = k as usize;
 
@@ -285,7 +286,7 @@ impl Context {
 
                 preprocessing_mult_depth: 0,
                 delinearization_depth: 5000, 
-                compression_factor: 5,
+                compression_factor: compression_factor,
                 multiplication_switch_threshold: 0
             };
 

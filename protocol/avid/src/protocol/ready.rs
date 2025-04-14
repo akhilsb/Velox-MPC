@@ -1,7 +1,6 @@
 use std::collections::{HashMap};
 
 use consensus::reconstruct_data;
-use crypto::decrypt;
 use crypto::hash::Hash;
 use types::Replica;
 
