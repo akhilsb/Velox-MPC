@@ -27,7 +27,7 @@ class CommandMaker:
 
     @staticmethod
     def generate_config_files(bport,client_bport,client_run_port,num_nodes):
-        return f'./genconfig --blocksize 100 --delay 100 --base_port {bport} --client_base_port {client_bport} --NumNodes {num_nodes} --target . --client_run_port {client_run_port} --local true'
+        return f'./config --blocksize 100 --delay 100 --base_port {bport} --client_base_port {client_bport} --NumNodes {num_nodes} --target . --client_run_port {client_run_port} --local true'
 
     @staticmethod
     def run_primary(key,mixing_batch_size,per_batch, compression_factor,debug=False):
@@ -38,12 +38,12 @@ class CommandMaker:
                 f'--protocol mpc --input xx --syncer syncer --batches {mixing_batch_size} --per {per_batch} --comp {compression_factor} --byzantine false')
     
     @staticmethod
-    def run_syncer(key,batches,per,debug=False):
+    def run_syncer(key,batches,per,compression_factor,debug=False):
         assert isinstance(key, str)
         assert isinstance(debug, bool)
         #v = '-vvv' if debug else '-vv'
         return (f'./node --config {key} --ip ip_file '
-                f'--protocol sync --input xx --syncer syncer --batches {batches} --per {per} --byzantine false')
+                f'--protocol sync --input xx --syncer syncer --batches {batches} --per {per} --comp {compression_factor} --byzantine false')
 
     @staticmethod
     def unzip_tkeys(fileloc, debug=False):
@@ -76,5 +76,5 @@ class CommandMaker:
     @staticmethod
     def alias_binaries(origin):
         assert isinstance(origin, str)
-        node, client, genconfig = join(origin, 'node'), join(origin, 'benchmark_client'), join(origin,'genconfig')
-        return f'rm node ; rm benchmark_client ; rm genconfig ; ln -s {node} . ; ln -s {client} . ; ln -s {genconfig} .'
+        node, client, config = join(origin, 'node'), join(origin, 'benchmark_client'), join(origin,'config')
+        return f'rm node ; rm benchmark_client ; rm config ; ln -s {node} . ; ln -s {client} . ; ln -s {config} .'

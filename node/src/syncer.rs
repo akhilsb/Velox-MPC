@@ -136,7 +136,7 @@ impl Syncer{
                             
                             let value_set = self.rbc_comp_values.entry(rbc_msg.msg.clone()).or_default();
                             value_set.insert(rbc_msg.msg.to_string());
-                            if latency_map.len() == self.num_nodes{
+                            if latency_map.len() == (2*self.num_nodes/3)+1{
 
                                 let start_time = self.rbc_start_times.get(&rbc_msg.id).unwrap();
                                 // All nodes terminated protocol

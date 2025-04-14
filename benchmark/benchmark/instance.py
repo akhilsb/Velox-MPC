@@ -92,7 +92,7 @@ class InstanceManager:
                 {
                     'IpProtocol': 'tcp',
                     'FromPort': self.settings.base_port,
-                    'ToPort': self.settings.base_port + 2_000,
+                    'ToPort': self.settings.base_port + 5_000,
                     'IpRanges': [{
                         'CidrIp': '0.0.0.0/0',
                         'Description': 'Dag port',
@@ -110,7 +110,7 @@ class InstanceManager:
         response = client.describe_images(
             Filters=[{
                 'Name': 'description',
-                'Values': ['Canonical, Ubuntu, 20.04 LTS, amd64 focal image build on 2023-03-28']
+                'Values': ['Canonical, Ubuntu, 22.04, amd64 jammy image']
             }]
         )
         return response['Images'][0]['ImageId']
