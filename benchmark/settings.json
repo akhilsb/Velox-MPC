@@ -4,8 +4,8 @@
         "path": "/home/akhil/.ssh/aws"
     },
     "port": 5000,
-    "client_base_port": 7000,
-    "client_run_port": 7500,
+    "client_base_port": 7500,
+    "client_run_port": 8000,
     "repo": {
         "name": "fair-async-mpc-rs",
         "url": "https://github.com/akhilsb/fair-async-mpc-rs.git",

@@ -194,8 +194,8 @@ impl Context {
         let (acss_ab_send, acss_ab_recv) = channel(10000);
         let (acss_ab_out_send, acss_ab_out_recv) = channel(10000);
 
-        let (avss_send, avss_recv) = channel(10000);
-        let (avss_out_send, avss_out_recv) = channel(10000);
+        let (avss_send, avss_recv) = channel(500000);
+        let (avss_out_send, avss_out_recv) = channel(500000);
 
         let (sh2t_send, sh2t_recv) = channel(10000);
         let (sh2t_out_send, sh2t_out_recv) = channel(10000);

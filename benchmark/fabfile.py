@@ -41,7 +41,7 @@ def log_v(ctx, debug=True):
     ''' Run benchmarks on localhost '''
     bench_params = {
         'faults': 0,
-        'nodes': 64,
+        'nodes': 112,
         'workers': 1,
         'rate': 8_000,
         'tx_size': 256,
@@ -67,7 +67,7 @@ def log_v(ctx, debug=True):
 
 
 @task
-def create(ctx, nodes=64):
+def create(ctx, nodes=112):
     ''' Create a testbed'''
     try:
         InstanceManager.make().create_instances(nodes)
@@ -85,7 +85,7 @@ def destroy(ctx):
 
 
 @task
-def start(ctx, max=64):
+def start(ctx, max=112):
     ''' Start at most `max` machines per data center '''
     try:
         InstanceManager.make().start_instances(max)
@@ -125,7 +125,7 @@ def remote(ctx, debug=False):
     ''' Run benchmarks on AWS '''
     bench_params = {
         'faults': 0,
-        'nodes': [64],
+        'nodes': [112],
         'workers': 1,
         'collocate': True,
         'rate': [10_000, 110_000],
@@ -152,7 +152,7 @@ def rerun(ctx, debug=False):
     ''' Run benchmarks on AWS '''
     bench_params = {
         'faults': 0,
-        'nodes': [64],
+        'nodes': [112],
         'workers': 1,
         'collocate': True,
         'rate': [10_000, 110_000],
@@ -207,7 +207,7 @@ def logs(ctx):
     ''' Run benchmarks on AWS '''
     bench_params = {
         'faults': 0,
-        'nodes': [64],
+        'nodes': [112],
         'workers': 1,
         'collocate': True,
         'rate': [10_000, 110_000],

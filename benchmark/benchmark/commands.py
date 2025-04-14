@@ -34,7 +34,7 @@ class CommandMaker:
         assert isinstance(key, str)
         assert isinstance(debug, bool)
         #v = '-vvv' if debug else '-vv'
-        return (f'./node --config {key} --ip ip_file '
+        return (f'ulimit -n 5000; ./node --config {key} --ip ip_file '
                 f'--protocol mpc --input xx --syncer syncer --batches {mixing_batch_size} --per {per_batch} --comp {compression_factor} --byzantine false')
     
     @staticmethod
@@ -42,7 +42,7 @@ class CommandMaker:
         assert isinstance(key, str)
         assert isinstance(debug, bool)
         #v = '-vvv' if debug else '-vv'
-        return (f'./node --config {key} --ip ip_file '
+        return (f'ulimit -n 5000; ./node --config {key} --ip ip_file '
                 f'--protocol sync --input xx --syncer syncer --batches {batches} --per {per} --comp {compression_factor} --byzantine false')
 
     @staticmethod
