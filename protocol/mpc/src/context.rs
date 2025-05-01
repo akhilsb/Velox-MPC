@@ -222,7 +222,7 @@ impl Context {
         let num_batches = (tot_sharings.max(per_batch))/per_batch;
         // Ensure this is a power of 2. 
         let inputs: Vec<LargeField> = (0..k).into_iter().map(|x| LargeField::from(x as u64)).collect();
-        log::info!("Generating {} random sharings and proposing {} sharings over {} batches for mixing {} inputs", (k/2)*log_k*log_k, tot_sharings, num_batches, k);
+        log::info!("Generating {} random sharings and proposing {} sharings over {} batches for mixing {} inputs", 8*(k/2)*log_k*log_k, tot_sharings, num_batches, k);
         tokio::spawn(async move {
             let mut c = Context {
                 net_send: consensus_net,

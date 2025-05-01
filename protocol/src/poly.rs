@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::{Mul, Sub, Add}};
 
 use crypto::hash::do_hash;
 use lambdaworks_math::{unsigned_integer::element::UnsignedInteger, polynomial::Polynomial, field::fields::{montgomery_backed_prime_fields::MontgomeryBackendPrimeField, fft_friendly::stark_252_prime_field::MontgomeryConfigStark252PrimeField}};
@@ -54,6 +54,45 @@ pub async fn generate_evaluation_points(
     let coefficients: Vec<Polynomial<LargeField>> = evaluations_prf.into_par_iter().map(|evals| {
         return Polynomial::interpolate(evaluation_points.as_slice(), evals.as_slice()).unwrap()
     }).collect();
+
+    // Evaluate the polynomial at n points
+    let evaluations_full = coefficients.par_iter().map(|polynomial|{
+        let mut eval_vec_ind = Vec::new();
+        for index in 0..shares_total{
+            eval_vec_ind.push(polynomial.evaluate(&LargeField::new(UnsignedInteger::from((index+1) as u64))));
+        }
+        return eval_vec_ind;
+    }).collect();
+    (evaluations_full,coefficients)
+}
+
+pub async fn generate_evaluation_points_opt(
+    evaluations_prf: Vec<Vec<LargeField>>, 
+    degree: usize,
+    shares_total: usize,
+) -> (Vec<Vec<LargeField>>, 
+    Vec<Polynomial<LargeField>>
+){
+
+    // The first evaluation is always at 0
+    let mut evaluation_points = Vec::new();
+    evaluation_points.push(LargeField::new(UnsignedInteger::from(0u64)));
+    for i in 0..degree{
+        evaluation_points.push(LargeField::new(UnsignedInteger::from((i+1) as u64)));
+    }
+    
+    // Generate vandermonde matrix
+    let vandermonde = vandermonde_matrix(evaluation_points.clone());
+    let inverse_vandermonde = inverse_vandermonde(vandermonde);
+
+    let coefficients : Vec<Polynomial<LargeField>> = evaluations_prf.into_par_iter().map(|evals|{
+        let coefficients = matrix_vector_multiply(&inverse_vandermonde, &evals);
+        return Polynomial::new(&coefficients);
+    }).collect();
+    // Generate coefficients of polynomial and then evaluate the polynomial at n points
+    // let coefficients: Vec<Polynomial<LargeField>> = evaluations_prf.into_par_iter().map(|evals| {
+    //     return Polynomial::interpolate(evaluation_points.as_slice(), evals.as_slice()).unwrap()
+    // }).collect();
 
     // Evaluate the polynomial at n points
     let evaluations_full = coefficients.par_iter().map(|polynomial|{
@@ -122,9 +161,10 @@ pub fn interpolate_shares( mut secret_key: Vec<u8>, num_shares: usize, is_nonce:
 
 pub fn check_if_all_points_lie_on_degree_x_polynomial(eval_points: Vec<LargeField>, polys_vector: Vec<Vec<LargeField>>, degree: usize) -> (bool,Option<Vec<Polynomial<LargeField>>>){
     //log::info!("Checking evaluations on points :{:?}, eval_points: {:?}", eval_points, polys_vector);
+    let inverse_vandermonde = inverse_vandermonde(vandermonde_matrix(eval_points[0..degree].to_vec()));
     let polys = polys_vector.into_par_iter().map(|points| {
-        let eval_points = eval_points.clone();            
-        let polynomial = Polynomial::interpolate(&eval_points[0..degree], &points[0..degree]).unwrap();
+        let coeffs = matrix_vector_multiply(&inverse_vandermonde, &points[0..degree].to_vec());
+        let polynomial = Polynomial::new(&coeffs);
         let all_points_match =  eval_points[degree..].iter().zip(points[degree..].iter()).map(|(eval_point, share)|{
             return polynomial.evaluate(eval_point) == *share;
         }).fold(true, |acc,x| acc && x);
@@ -150,4 +190,71 @@ pub fn check_if_all_points_lie_on_degree_x_polynomial(eval_points: Vec<LargeFiel
     else{
         (false, None)
     }
+}
+
+
+/// Constructs the Vandermonde matrix for a given set of x-values.
+pub fn vandermonde_matrix(x_values: Vec<LargeField>) -> Vec<Vec<LargeField>> {
+    let n = x_values.len();
+    let mut matrix = vec![vec![LargeField::zero(); n]; n];
+
+    for (row, x) in x_values.iter().enumerate() {
+        let mut value = LargeField::one();
+        for col in 0..n {
+            matrix[row][col] = value.clone();
+            value = value.mul(x);
+        }
+    }
+
+    matrix
+}
+
+/// Computes the inverse of a Vandermonde matrix modulo prime using Gaussian elimination.
+pub fn inverse_vandermonde(matrix: Vec<Vec<LargeField>>) -> Vec<Vec<LargeField>> {
+    let n = matrix.len();
+    let mut augmented = matrix.clone();
+
+    // Extend the matrix with an identity matrix on the right
+    for i in 0..n {
+        augmented[i].extend((0..n).map(|j| if i == j { LargeField::one() } else { LargeField::zero() }));
+    }
+
+    // Perform Gaussian elimination
+    for col in 0..n {
+        // Normalize pivot row
+        let inv = &augmented[col][col].inv().unwrap();
+        for k in col..2 * n {
+            augmented[col][k] = augmented[col][k].mul(inv);
+        }
+
+        // Eliminate other rows
+        for row in 0..n {
+            if row != col {
+                let factor = augmented[row][col].clone();
+                for k in col..2 * n {
+                    augmented[row][k] = augmented[row][k].sub(factor.mul(augmented[col][k]));
+                }
+            }
+        }
+    }
+
+    // Extract the right half as the inverse
+    augmented
+        .into_iter()
+        .map(|row| row[n..2 * n].to_vec())
+        .collect()
+}
+
+pub fn matrix_vector_multiply(
+    matrix: &Vec<Vec<LargeField>>,
+    vector: &Vec<LargeField>,
+) -> Vec<LargeField> {
+    matrix
+        .par_iter()
+        .map(|row| {
+            row.iter()
+                .zip(vector)
+                .fold(LargeField::zero(), |sum, (a, b)| sum.add(a.mul(b)))
+        })
+        .collect()
 }

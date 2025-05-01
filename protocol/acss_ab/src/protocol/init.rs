@@ -3,7 +3,7 @@ use std::{ops::{Mul, Add, Sub}};
 use crate::Context;
 use crypto::{hash::{do_hash, Hash}, aes_hash::MerkleTree};
 use lambdaworks_math::{unsigned_integer::element::UnsignedInteger, polynomial::Polynomial, traits::ByteConversion};
-use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, sample_polynomials_from_prf};
+use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, generate_evaluation_points_opt, sample_polynomials_from_prf};
 use rand::random;
 use types::Replica;
 
@@ -40,7 +40,7 @@ impl Context{
             let evaluation_prf_chunks: Vec<Vec<Vec<LargeField>>> = evaluations_prf.chunks(evaluations_prf.len()/self.num_threads).map(|el| el.to_vec()).collect();
             for eval_prfs in evaluation_prf_chunks{
                 let handle = tokio::spawn(
-                    generate_evaluation_points(
+                    generate_evaluation_points_opt(
                         eval_prfs,
                         self.num_faults,
                         self.num_nodes,

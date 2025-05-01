@@ -1,7 +1,7 @@
 use crate::Context;
 use crypto::{hash::{do_hash, Hash}};
 use lambdaworks_math::{unsigned_integer::element::UnsignedInteger};
-use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, sample_polynomials_from_prf, check_if_all_points_lie_on_degree_x_polynomial};
+use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, generate_evaluation_points_opt, sample_polynomials_from_prf};
 use rand::random;
 use types::Replica;
 
@@ -32,7 +32,7 @@ impl Context{
             let evaluation_prf_chunks: Vec<Vec<Vec<LargeField>>> = evaluations_prf.chunks(self.num_threads).map(|el| el.to_vec()).collect();
             for eval_prfs in evaluation_prf_chunks{
                 let handle = tokio::spawn(
-                    generate_evaluation_points(
+                    generate_evaluation_points_opt(
                         eval_prfs,
                         2*self.num_faults,
                         self.num_nodes,
@@ -108,8 +108,6 @@ impl Context{
             ).await;
             nonce_evaluations = nonce_evaluations_ret[0].clone();
         }
-        let poly_status = check_if_all_points_lie_on_degree_x_polynomial(_indices, evaluations.clone(), 2*self.num_faults+1);
-        assert!(poly_status.0);
         // Transform the shares to element wise shares
         let mut party_wise_shares: Vec<Vec<LargeFieldSer>> = Vec::new();
         let mut party_appended_shares: Vec<Vec<u8>> = Vec::new();
