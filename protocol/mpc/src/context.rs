@@ -68,14 +68,14 @@ pub struct Context {
     pub sh2t_send: Sender<(usize, Vec<LargeFieldSer>)>,
     pub sh2t_out_recv: Receiver<(usize, Replica, Option<Vec<LargeFieldSer>>)>,
 
-    pub acs_event_send: Sender<usize>,
-    pub acs_out_recv: Receiver<Vec<usize>>,
+    pub acs_event_send: Sender<(usize,usize, Vec<LargeFieldSer>)>,
+    pub acs_out_recv: Receiver<(usize,Vec<usize>)>,
 
     pub ctrbc_event_send: Sender<Vec<u8>>,
     pub ctrbc_out_recv: Receiver<(usize, Replica, Vec<u8>)>,
 
-    pub acs_2_event_send: Sender<usize>,
-    pub acs_2_out_recv: Receiver<Vec<usize>>,
+    pub acs_2_event_send: Sender<(usize,usize, Vec<LargeFieldSer>)>,
+    pub acs_2_out_recv: Receiver<(usize,Vec<usize>)>,
 
     // Housekeeping processes for tracking metrics of the protocol
     pub sync_send: TcpReliableSender<Replica, SyncMsg, Acknowledgement>,
@@ -437,7 +437,7 @@ impl Context {
                         anyhow!("Networking layer has closed")
                     )?;
                     log::debug!("Received message from RBC channel {:?}", acs_output);
-                    self.handle_acs_output(acs_output).await;
+                    self.handle_acs_output(acs_output.1).await;
                 },
                 ctrbc_output = self.ctrbc_out_recv.recv() =>{
                     let ctrbc_output = ctrbc_output.ok_or_else(||
@@ -451,7 +451,7 @@ impl Context {
                         anyhow!("Networking layer has closed")
                     )?;
                     log::debug!("Received message from RBC channel {:?}", acs_output);
-                    self.handle_prot_end_ba_output(acs_output).await;
+                    self.handle_prot_end_ba_output(acs_output.1).await;
                 },
                 avss_output = self.avss_out_recv.recv() =>{
                     let avss_output = avss_output.ok_or_else(||

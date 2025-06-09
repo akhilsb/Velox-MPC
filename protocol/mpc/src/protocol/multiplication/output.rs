@@ -97,7 +97,7 @@ impl Context{
         }
         log::info!("Party {} successfully reconstructed output wires", sender);
         self.mult_state.output_layer.broadcasted_masked_outputs.insert(sender, output_value);
-        let _status = self.acs_2_event_send.send(sender).await;
+        let _status = self.acs_2_event_send.send((1,sender, Vec::new())).await;
         self.verify_masked_output_reconstruction_termination().await;
     }
 

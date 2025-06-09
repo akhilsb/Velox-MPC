@@ -131,7 +131,7 @@ impl Context{
             log::info!("ACSS, Sh2t, and AVSS completed for sender {} for all batches", sender);
             log::info!("Batches info: {:?} {:?}", shares_batches_map.keys(),share_2t_batches_map.keys());
             self.rand_sharings_state.acss_completed_parties.insert(sender);
-            let _status = self.acs_event_send.send(sender).await;
+            let _status = self.acs_event_send.send((1,sender, Vec::new())).await;
             self.verify_termination().await;
         }
     }
