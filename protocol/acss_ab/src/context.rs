@@ -8,12 +8,12 @@ use anyhow::{anyhow, Result};
 use config::Node;
 
 use fnv::FnvHashMap;
-use lambdaworks_math::{traits::ByteConversion, fft::cpu::roots_of_unity::get_powers_of_primitive_root, field::traits::RootsConfig};
+use lambdaworks_math::traits::ByteConversion;
 use network::{
     plaintcp::{CancelHandler},
     Acknowledgement,
 };
-use protocol::{LargeFieldSer, LargeField, AvssShare};
+use protocol::{LargeFieldSer, LargeField, AvssShare, gen_roots_of_unity};
 //use signal_hook::{iterator::Signals, consts::{SIGINT, SIGTERM}};
 use tokio::{sync::{
     mpsc::{Receiver, Sender, channel},
@@ -178,7 +178,7 @@ impl Context {
                 inp_avss: input_avss,
                 out_avss: output_avss,
 
-                roots_of_unity: Self::gen_roots_of_unity(config.num_nodes),
+                roots_of_unity: gen_roots_of_unity(config.num_nodes),
 
                 inp_ctrbc: ctrbc_req_send_channel,
                 recv_out_ctrbc: ctrbc_out_recv_channel,
@@ -357,13 +357,6 @@ impl Context {
             };
         }
         Ok(())
-    }
-
-    // temporary fix
-    pub fn gen_roots_of_unity(n: usize) -> Vec<LargeField> {
-        let len = n.next_power_of_two();
-        let order = len.trailing_zeros();
-        get_powers_of_primitive_root(order.into(), len, RootsConfig::Natural).unwrap()
     }
 }
 

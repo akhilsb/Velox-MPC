@@ -10,6 +10,8 @@ pub enum ProtMsg{
     SharesL2(Vec<u8>, usize),
 
     QuadShares(Vec<u8>, usize),
+    ReconstructRandBitShares(Vec<LargeFieldSer>),
+
     // Hash Message to ensure at least t+1 parties are consistent with the hash value
     // Bool is for indicating linear or quadratic layer
     HashZMsg(Hash, usize, bool),
@@ -22,4 +24,5 @@ pub enum ProtMsg{
 
     // Temporary for testing
     ReconstructMultSharings(Vec<LargeFieldSer>, usize),
+    ReconstructRandBits(Vec<LargeFieldSer>), 
 }

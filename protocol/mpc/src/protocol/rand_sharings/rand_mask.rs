@@ -127,15 +127,17 @@ impl Context{
             let vandermonde_matrix = Self::vandermonde_matrix(x_values, 2*self.num_faults+1);
             
             let mut rand_combined_secrets: Vec<Vec<LargeField>> = Vec::new();
-            for party in self.rand_sharings_state.acs_output.clone().into_iter(){
-                let avss_secrets = self.output_mask_state.public_reconstruction_outputs.get(&party).unwrap();
-                if rand_combined_secrets.len() == 0{
-                    for _ in 0..self.output_mask_size{
-                        rand_combined_secrets.push(vec![]);
+            for party in 0..self.num_nodes{
+                if self.rand_sharings_state.acs_output.contains(&party){
+                    let avss_secrets = self.output_mask_state.public_reconstruction_outputs.get(&party).unwrap();
+                    if rand_combined_secrets.len() == 0{
+                        for _ in 0..self.output_mask_size{
+                            rand_combined_secrets.push(vec![]);
+                        }
                     }
-                }
-                for (index, share) in avss_secrets.iter().enumerate(){
-                    rand_combined_secrets[index].push(share.clone());
+                    for (index, share) in avss_secrets.iter().enumerate(){
+                        rand_combined_secrets[index].push(share.clone());
+                    }
                 }
             }
             log::info!("Reconstructed AVSS contributions of the random mask from all parties");
@@ -154,7 +156,9 @@ impl Context{
             else{
                 let masked_outputs = masked_outputs.unwrap();
                 let unmasked_outputs: Vec<LargeField> = masked_outputs.into_iter().zip(rand_recon_values.into_iter()).map(|(output,mask)| output-mask).collect();
-                log::info!("Unmasked output wires, protocol completed successfully with output {:?}", unmasked_outputs);
+                for out in unmasked_outputs{
+                    log::info!("Unmasked output wire: {}", out);
+                }
                 self.terminate("output".to_string()).await;
             }
         }

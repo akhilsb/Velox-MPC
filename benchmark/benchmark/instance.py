@@ -110,7 +110,7 @@ class InstanceManager:
         response = client.describe_images(
             Filters=[{
                 'Name': 'description',
-                'Values': ['Canonical, Ubuntu, 22.04, amd64 jammy image']
+                'Values': ['Canonical, Ubuntu, 24.04, amd64 noble image']
             }]
         )
         return response['Images'][0]['ImageId']

@@ -99,7 +99,7 @@ impl Context{
         let mut mult_value_last_round = LargeField::zero();
         if x_vectors[0].len() == 1{
             log::info!("Final level of compression, removing random mask from the set of multiplication tuples");
-            mult_value_last_round = *mult_vec.last().clone().unwrap();
+            mult_value_last_round = mult_vec.last().clone().unwrap().clone();
         }
 
         let sum_mult: LargeField = mult_vec.clone().into_iter().sum();
@@ -339,7 +339,7 @@ impl Context{
             let b_sec = b_poly.evaluate(&eval_point);
             let c_sec = c_poly.evaluate(&eval_point);
 
-            if a_sec*b_sec == c_sec{
+            if a_sec.clone()*b_sec.clone() == c_sec{
                 log::info!("handle_reconstruct_verf_output_sharing: Multiplication constraint holds.");
                 // Output from here
                 self.terminate("verification".to_string()).await;

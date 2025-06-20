@@ -46,6 +46,14 @@ impl Context {
                     log::debug!("Received Init for instance id {} from node : {}", depth, wrapper_msg.sender);
                     self.handle_quadratic_mult_shares(depth,main_msg, wrapper_msg.sender).await;
                 },
+                ProtMsg::ReconstructRandBitShares(shares)=>{
+                    log::debug!("Received ReconstructRandBitShares message");
+                    self.handle_reconstruct_rand_bits(shares, wrapper_msg.sender).await;
+                },
+                ProtMsg::ReconstructRandBits(shares)=>{
+                    log::debug!("Received ReconstructRandBits message");
+                    self.handle_reconstruct_rand_bits_verify(shares, wrapper_msg.sender).await;
+                },
                 ProtMsg::HashZMsg(hash_val, depth, lin_or_quad) => {
                     // RBC initialized
                     log::debug!("Received HashZMsg for depth {} from node : {}", depth, wrapper_msg.sender);

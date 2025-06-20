@@ -18,11 +18,10 @@ impl Context{
 
         let tot_sharings = secrets.len();
 
-        let mut handles = Vec::new();
         let mut _indices;
-        let mut evaluations;
+        let mut evaluations: Vec<Vec<LargeField>>;
         let nonce_evaluations;
-        let mut coefficients;
+        let mut coefficients: Vec<Polynomial<LargeField>>;
         
         let blinding_poly_evaluations;
         let blinding_poly_coefficients;
@@ -37,32 +36,23 @@ impl Context{
                 false, 
                 1u8
             );
-            let evaluation_prf_chunks: Vec<Vec<Vec<LargeField>>> = evaluations_prf.chunks(evaluations_prf.len()/self.num_threads).map(|el| el.to_vec()).collect();
-            for eval_prfs in evaluation_prf_chunks{
-                let handle = tokio::spawn(
-                    generate_evaluation_points_opt(
-                        eval_prfs,
-                        self.num_faults,
-                        self.num_nodes,
-                    )
-                );
-                handles.push(handle);
-            }
+            let (evaluations_batch,coefficients_batch): (Vec<Vec<LargeField>>, Vec<Polynomial<LargeField>>) = generate_evaluation_points_opt(
+                evaluations_prf,
+                self.num_faults,
+                self.num_nodes,
+            ).await;
 
             evaluations = Vec::new();
             coefficients = Vec::new();
+
+            evaluations.extend(evaluations_batch);
+            coefficients.extend(coefficients_batch);
+
             _indices = Vec::new();
             for party in 0..self.num_nodes{
                 _indices.push(LargeField::new(UnsignedInteger::from((party+1) as u64)));
             }
-                    
-            for handle in handles{
-                let (
-                    evaluations_batch, 
-                    coefficients_batch) = handle.await.unwrap();
-                evaluations.extend(evaluations_batch);
-                coefficients.extend(coefficients_batch);
-            }
+
             // Generate nonce evaluations
             let evaluations_nonce_prf = sample_polynomials_from_prf(
                 vec![LargeField::new(UnsignedInteger{
@@ -119,29 +109,17 @@ impl Context{
         }
         else{
             // Parallelize the generation of evaluation points
-            let mut secret_shards: Vec<Vec<LargeField>> = secrets.chunks(self.num_threads).map(|el_vec| el_vec.to_vec()).collect();
-            for shard in secret_shards.iter_mut(){
-                let secrets = shard.clone();
-                let handle = tokio::spawn(
-                    generate_evaluation_points_fft(
-                        secrets,
-                        self.num_faults-1,
-                        self.num_nodes
-                    )
-                );
-                handles.push(handle);
-            }
             evaluations = Vec::new();
             coefficients = Vec::new();
+            let (evaluations_batch, coefficients_batch) = generate_evaluation_points_fft(
+                secrets,
+                self.num_faults-1,
+                self.num_nodes
+            ).await;
+            evaluations.extend(evaluations_batch);
+            coefficients.extend(coefficients_batch);
             _indices = self.roots_of_unity.clone();
-            for handle in handles{
-                let (
-                    evaluations_batch, 
-                    coefficients_batch) = handle.await.unwrap();
-                evaluations.extend(evaluations_batch);
-                coefficients.extend(coefficients_batch);
-            }
-
+            
             // Generate nonce evaluations
             let (nonce_evaluations_ret,_nonce_coefficients) = generate_evaluation_points_fft(
                 vec![LargeField::new(UnsignedInteger{
@@ -200,7 +178,9 @@ impl Context{
 
         let mut blinding_commitments = Vec::new();
         for i in 0..self.num_nodes{
-            blinding_commitments.push(self.hash_context.hash_two( blinding_poly_evaluations[i].clone().to_bytes_be(), nonce_blinding_poly_evaluations[i].clone().to_bytes_be()));
+            blinding_commitments.push(self.hash_context.hash_two( 
+                blinding_poly_evaluations[i].clone().to_bytes_be().try_into().unwrap(), 
+                nonce_blinding_poly_evaluations[i].clone().to_bytes_be().try_into().unwrap()));
         }
 
         let blinding_mt_root = MerkleTree::new(blinding_commitments.clone(), &self.hash_context).root();
@@ -209,15 +189,18 @@ impl Context{
         let root_comm = self.hash_context.hash_two(share_root_comm, blinding_mt_root);
         // Convert root commitment to field element
         let root_comm_fe = LargeField::from_bytes_be(&root_comm).unwrap();
+        log::info!("Root_comm_fe: {:?} for sender {} instance_id {}",root_comm_fe, self.myid, instance_id);
+
+
         let mut root_comm_fe_mul = root_comm_fe.clone();
         let mut dzk_coeffs = blinding_poly_coefficients.clone();
         for poly in coefficients.into_iter(){
-            dzk_coeffs = dzk_coeffs.add(poly.mul(root_comm_fe_mul));
-            root_comm_fe_mul = root_comm_fe_mul.mul(root_comm_fe);
+            dzk_coeffs = dzk_coeffs.add(poly.mul(root_comm_fe_mul.clone()));
+            root_comm_fe_mul = root_comm_fe_mul.mul(root_comm_fe.clone());
         }
 
         // Serialize shares,commitments, and DZK polynomials
-        let ser_dzk_coeffs: Vec<[u8;32]> = dzk_coeffs.coefficients.into_iter().map(|el| el.to_bytes_be()).collect();
+        let ser_dzk_coeffs: Vec<LargeFieldSer> = dzk_coeffs.coefficients.into_iter().map(|el| el.to_bytes_be()).collect();
         let broadcast_vec = (commitments, blinding_commitments, ser_dzk_coeffs, tot_sharings);
         let serialized_broadcase_vec = (instance_id, broadcast_vec);
         let ser_vec = bincode::serialize(&serialized_broadcase_vec).unwrap();
@@ -248,6 +231,7 @@ impl Context{
     }
 
     pub async fn verify_shares(&mut self, sender: Replica, instance_id: usize){
+        log::info!("Verifying shares from sender: {} for instance: {}", sender, instance_id);
         if !self.acss_ab_state.contains_key(&instance_id){
             let acss_state = ACSSABState::new();
             self.acss_ab_state.insert(instance_id, acss_state);
@@ -300,6 +284,7 @@ impl Context{
         let root_comm = self.hash_context.hash_two(share_root, blinding_root);
         let root_comm_fe = LargeField::from_bytes_be(&root_comm).unwrap();
 
+        log::info!("Root_comm_fe: {:?} for sender {} instance_id {}",root_comm_fe, sender, instance_id);
         let verf_status = self.evaluate_dzk_poly(
             root_comm_fe, 
             self.myid, 
@@ -331,7 +316,7 @@ impl Context{
         share_sender: Replica,
         dzk_poly: &Polynomial<LargeField>, 
         shares: &Vec<LargeField>, 
-        blinding_comm: LargeFieldSer,
+        blinding_comm: Hash,
         blinding_nonce: LargeFieldSer,
     )-> bool{
         // Change this to be root of unity
@@ -341,19 +326,23 @@ impl Context{
         }
         else{
             // get point of evaluation
-            let eval_point = self.roots_of_unity[share_sender];
+            let eval_point = self.roots_of_unity[share_sender].clone();
             dzk_point = dzk_poly.evaluate(&eval_point);
         }
         let mut agg_shares_point = LargeField::zero();
         let mut root_comm_fe_mul = root_comm_fe.clone();
         for share in shares{
-            agg_shares_point = agg_shares_point.add(share.mul(root_comm_fe_mul));
+            agg_shares_point = agg_shares_point.add(share.mul(root_comm_fe_mul.clone()));
             root_comm_fe_mul = root_comm_fe_mul.mul(root_comm_fe.clone());
         }
 
         let blinding_poly_share_bytes = dzk_point.sub(agg_shares_point).to_bytes_be();
-        let blinding_hash = self.hash_context.hash_two(blinding_poly_share_bytes,blinding_nonce);
+        let blinding_hash = self.hash_context.hash_two(
+            blinding_poly_share_bytes.try_into().unwrap(),
+            blinding_nonce.try_into().unwrap()
+        );
         if blinding_hash != blinding_comm{
+            log::info!("Blinding hash: {:?}, blinding_comm: {:?}", blinding_hash, blinding_comm);
             // Invalid DZK proof
             return false;
         }

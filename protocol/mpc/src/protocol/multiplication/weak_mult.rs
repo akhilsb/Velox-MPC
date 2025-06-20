@@ -1,3 +1,5 @@
+use std::ops::Mul;
+
 use crypto::{hash::{Hash}};
 use lambdaworks_math::{polynomial::Polynomial};
 use protocol::{LargeField};
@@ -86,10 +88,9 @@ impl Context{
             mult_state.depth_terminated = true;
             if depth == self.preprocessing_mult_depth{
                 // Random bit sharings, add them to mix_circuit state
-                self.mix_circuit_state.rand_bit_sharings.extend(shares_next_depth);
-                self.terminate("Preprocessing".to_string()).await;
-                // Start next depth and real circuit execution
-                self.init_mixing().await;
+                log::info!("Multiplication complete for rand_bit preparation with shares_len: {:?}", shares_next_depth.len());
+                self.mix_circuit_state.rand_bit_recon_shares.insert(self.myid, shares_next_depth);
+                self.init_rand_bit_reconstruction().await;
             }
             else if depth <= self.max_depth{
                 // Start the next depth multiplication here
@@ -119,7 +120,7 @@ impl Context{
         // Compute the dot product
         a.iter()
             .zip(b.iter())
-            .map(|(x, y)| *x * *y)
+            .map(|(x, y)| x.clone().mul(y.clone()))
             .sum()
     }
 

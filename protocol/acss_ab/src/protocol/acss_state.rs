@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crypto::hash::Hash;
 use lambdaworks_math::polynomial::Polynomial;
-use protocol::{LargeField, AvssShare};
+use protocol::{LargeField, AvssShare, LargeFieldSer};
 use types::Replica;
 
 #[derive(Clone, Debug)]
@@ -10,7 +10,7 @@ pub struct ACSSABState{
     // Shares, Nonce, Blinding nonce share in each tuple
     pub shares: HashMap<Replica, AvssShare>,
     // Commitments to shares, commitments to blinding polynomial, and DZK polynomial
-    pub commitments: HashMap<Replica, (Vec<Hash>, Vec<Hash>, Vec<[u8;32]>)>,
+    pub commitments: HashMap<Replica, (Vec<Hash>, Vec<Hash>, Vec<LargeFieldSer>)>,
     // Reliable Agreement
     pub ra_outputs: HashSet<Replica>,
     // Verification status for each party

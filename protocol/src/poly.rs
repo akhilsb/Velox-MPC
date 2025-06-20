@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::{Mul, Sub, Add}};
 
 use crypto::hash::do_hash;
-use lambdaworks_math::{unsigned_integer::element::UnsignedInteger, polynomial::Polynomial, field::fields::{montgomery_backed_prime_fields::MontgomeryBackendPrimeField, fft_friendly::stark_252_prime_field::MontgomeryConfigStark252PrimeField}};
+use lambdaworks_math::{unsigned_integer::element::UnsignedInteger, polynomial::Polynomial};
 use rand::random;
 use rand_chacha::ChaCha20Rng;
 use rand_core::{SeedableRng, RngCore};
@@ -96,11 +96,7 @@ pub async fn generate_evaluation_points_opt(
 
     // Evaluate the polynomial at n points
     let evaluations_full = coefficients.par_iter().map(|polynomial|{
-        let mut eval_vec_ind = Vec::new();
-        for index in 0..shares_total{
-            eval_vec_ind.push(polynomial.evaluate(&LargeField::new(UnsignedInteger::from((index+1) as u64))));
-        }
-        return eval_vec_ind;
+        (0..shares_total).into_par_iter().map(|index| polynomial.evaluate(&LargeField::new(UnsignedInteger::from((index+1) as u64)))).collect()
     }).collect();
     (evaluations_full,coefficients)
 }
@@ -113,21 +109,41 @@ pub async fn generate_evaluation_points_fft(
     Vec<Polynomial<LargeField>>
 ){
     // For FFT evaluations, first sample coefficients of polynomial and then interpolate all n points
-    let coefficients: Vec<Polynomial<LargeField>> = secrets.into_par_iter().map(|secret| {
+    let coefficients: Vec<Vec<LargeField>> = secrets.into_par_iter().map(|secret| {
         let mut coeffs_single_poly = Vec::new();
         coeffs_single_poly.push(secret);
         for _ in 0..degree_poly{
             coeffs_single_poly.push(rand_field_element());
         }
-        return Polynomial::new(&coeffs_single_poly);
+        return Polynomial::new(&coeffs_single_poly).coefficients;
     }).collect();
 
-    let evaluations = coefficients.par_iter().map(|poly_coeffs|{
-        let poly_evaluations_fft = Polynomial::evaluate_fft::<MontgomeryBackendPrimeField<MontgomeryConfigStark252PrimeField, 4>>(poly_coeffs, 1, Some(shares_total)).unwrap();
-        poly_evaluations_fft
-    }).collect();
-    (evaluations, coefficients)
+    return generate_evaluation_points_opt(coefficients, degree_poly, shares_total).await;
 }
+
+// pub async fn generate_evaluation_points_fft(
+//     secrets: Vec<LargeField>,
+//     degree_poly: usize,
+//     shares_total: usize,
+// )-> (Vec<Vec<LargeField>>, 
+//     Vec<Polynomial<LargeField>>
+// ){
+//     // For FFT evaluations, first sample coefficients of polynomial and then interpolate all n points
+//     let coefficients: Vec<Polynomial<LargeField>> = secrets.into_par_iter().map(|secret| {
+//         let mut coeffs_single_poly = Vec::new();
+//         coeffs_single_poly.push(secret);
+//         for _ in 0..degree_poly{
+//             coeffs_single_poly.push(rand_field_element());
+//         }
+//         return Polynomial::new(&coeffs_single_poly);
+//     }).collect();
+
+//     let evaluations = coefficients.par_iter().map(|poly_coeffs|{
+//         let poly_evaluations_fft = Polynomial::evaluate_fft::<MontgomeryBackendPrimeField<MontgomeryConfigStark252PrimeField, 4>>(poly_coeffs, 1, Some(shares_total)).unwrap();
+//         poly_evaluations_fft
+//     }).collect();
+//     (evaluations, coefficients)
+// }
 
 pub fn pseudorandom_lf(rng_seed: &[u8], num: usize)->Vec<LargeField>{
     let mut rng = ChaCha20Rng::from_seed(do_hash(rng_seed));
@@ -224,7 +240,7 @@ pub fn inverse_vandermonde(matrix: Vec<Vec<LargeField>>) -> Vec<Vec<LargeField>>
         // Normalize pivot row
         let inv = &augmented[col][col].inv().unwrap();
         for k in col..2 * n {
-            augmented[col][k] = augmented[col][k].mul(inv);
+            augmented[col][k] = augmented[col][k].clone().mul(inv);
         }
 
         // Eliminate other rows
@@ -232,7 +248,7 @@ pub fn inverse_vandermonde(matrix: Vec<Vec<LargeField>>) -> Vec<Vec<LargeField>>
             if row != col {
                 let factor = augmented[row][col].clone();
                 for k in col..2 * n {
-                    augmented[row][k] = augmented[row][k].sub(factor.mul(augmented[col][k]));
+                    augmented[row][k] = augmented[row][k].clone().sub(factor.clone().mul(augmented[col][k].clone()));
                 }
             }
         }

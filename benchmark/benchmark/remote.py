@@ -154,7 +154,7 @@ class Bench:
             f'(cd {self.settings.repo_name} && git checkout -f {self.settings.branch})',
             f'(cd {self.settings.repo_name} && git pull -f)',
             'source $HOME/.cargo/env',
-            'sudo apt install pkg-config && sudo apt install libssl-dev',
+            'sudo apt-get install -y pkg-config && sudo apt-get install -y libssl-dev',
             'export RUSTFLAGS="-C target-feature=+aes,+ssse3"',
             f'(cd {self.settings.repo_name} && {CommandMaker.compile()})',
             CommandMaker.alias_binaries(
@@ -246,7 +246,7 @@ class Bench:
         Print.info('Booting primaries...')
         st_time = round(time.time() * 1000) + 60000
         mixing_batch_size = 256
-        per_batch = 200
+        per_batch = 500
         compression_factor = 10
 
         for i,ip in enumerate(hosts):
@@ -352,8 +352,8 @@ class Bench:
         #     #c.put(PathMaker.parameters_file(), '.')
         Print.info('Booting primaries...')
         st_time = round(time.time() * 1000) + 60000
-        mixing_batch_size = 1024
-        per_batch = 500
+        mixing_batch_size = 256
+        per_batch = 200
         compression_factor = 10
         
 

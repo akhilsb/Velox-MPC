@@ -55,9 +55,9 @@ impl Context{
         }
         let mut r_iter = LargeField::one();
         for (x,mult) in x_values.iter_mut().zip(mult_values.iter_mut()){
-            *x *= r_iter;
-            *mult *= r_iter;
-            r_iter *= coin_value;
+            *x *= r_iter.clone();
+            *mult *= r_iter.clone();
+            r_iter *= coin_value.clone();
         }
         log::info!("Multiplication tuples after coin toss: x: {}, y: {}, mult: {}",x_values.len(), y_values.len(), mult_values.len());
         // Compress shares with dimension reduction factor k

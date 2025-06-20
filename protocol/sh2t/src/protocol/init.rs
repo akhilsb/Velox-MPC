@@ -1,6 +1,6 @@
 use crate::Context;
 use crypto::{hash::{do_hash, Hash}};
-use lambdaworks_math::{unsigned_integer::element::UnsignedInteger};
+use lambdaworks_math::{unsigned_integer::element::UnsignedInteger, traits::ByteConversion};
 use protocol::{LargeField, LargeFieldSer, generate_evaluation_points_fft, generate_evaluation_points, generate_evaluation_points_opt, sample_polynomials_from_prf};
 use rand::random;
 use types::Replica;
@@ -14,7 +14,6 @@ impl Context{
 
         let tot_sharings = secrets.len();
 
-        let mut handles = Vec::new();
         let mut _indices;
         let mut evaluations;
         let nonce_evaluations;
@@ -29,32 +28,23 @@ impl Context{
                 false, 
                 1u8
             );
-            let evaluation_prf_chunks: Vec<Vec<Vec<LargeField>>> = evaluations_prf.chunks(self.num_threads).map(|el| el.to_vec()).collect();
-            for eval_prfs in evaluation_prf_chunks{
-                let handle = tokio::spawn(
-                    generate_evaluation_points_opt(
-                        eval_prfs,
-                        2*self.num_faults,
-                        self.num_nodes,
-                    )
-                );
-                handles.push(handle);
-            }
 
             evaluations = Vec::new();
             coefficients = Vec::new();
+
+            let (evaluations_batch, coefficients_batch) = generate_evaluation_points_opt(
+                evaluations_prf,
+                2*self.num_faults,
+                self.num_nodes,
+            ).await;
+
+            evaluations.extend(evaluations_batch);
+            coefficients.extend(coefficients_batch);
             _indices = Vec::new();
             for party in 0..self.num_nodes{
                 _indices.push(LargeField::new(UnsignedInteger::from((party+1) as u64)));
             }
 
-            for handle in handles{
-                let (
-                    evaluations_batch, 
-                    coefficients_batch) = handle.await.unwrap();
-                evaluations.extend(evaluations_batch);
-                coefficients.extend(coefficients_batch);
-            }
             // Generate nonce evaluations
             let evaluations_nonce_prf = sample_polynomials_from_prf(
                 vec![LargeField::new(UnsignedInteger{
@@ -74,30 +64,18 @@ impl Context{
         }
         else{
             // Parallelize the generation of evaluation points
-            let mut secret_shards: Vec<Vec<LargeField>> = secrets.chunks(self.num_threads).map(|el_vec| el_vec.to_vec()).collect();
-            for shard in secret_shards.iter_mut(){
-                let secrets = shard.clone();
-                let handle = tokio::spawn(
-                    generate_evaluation_points_fft(
-                        secrets,
-                        2*self.num_faults-1,
-                        self.num_nodes
-                    )
-                );
-                handles.push(handle);
-            }
+            let (evaluations_batch, coefficients_batch) = generate_evaluation_points_fft(
+                secrets,
+                2*self.num_faults-1,
+                self.num_nodes
+            ).await;
             evaluations = Vec::new();
             coefficients = Vec::new();
             _indices = self.roots_of_unity.clone();
 
-            for handle in handles{
-                let (
-                    evaluations_batch, 
-                    coefficients_batch) = handle.await.unwrap();
-                evaluations.extend(evaluations_batch);
-                coefficients.extend(coefficients_batch);
-            }
-
+            evaluations.extend(evaluations_batch);
+            coefficients.extend(coefficients_batch);
+            
             // Generate nonce evaluations
             let (nonce_evaluations_ret,_nonce_coefficients) = generate_evaluation_points_fft(
                 vec![LargeField::new(UnsignedInteger{

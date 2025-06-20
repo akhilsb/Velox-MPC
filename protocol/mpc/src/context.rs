@@ -12,7 +12,7 @@ use network::{
     plaintcp::{CancelHandler, TcpReceiver, TcpReliableSender},
     Acknowledgement,
 };
-use protocol::{LargeFieldSer, LargeField, AvssShare};
+use protocol::{LargeFieldSer, LargeField, AvssShare, gen_roots_of_unity, FIELD_DIV_2};
 use signal_hook::{iterator::Signals, consts::{SIGINT, SIGTERM}};
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedReceiver, Receiver, Sender, channel},
@@ -21,7 +21,7 @@ use tokio::sync::{
 // use tokio_util::time::DelayQueue;
 use types::{Replica, WrapperMsg, SyncMsg, SyncState};
 
-use crypto::{aes_hash::HashState};
+use crypto::{aes_hash::HashState, hash::Hash};
 
 use crate::{msg::ProtMsg, handlers::{sync_handler::SyncHandler, handler::Handler}, protocol::{RandSharings, MultState, VerificationState, rand_sharings::rand_mask::RandomOutputMaskStruct, online_phase::mix_circuit_state::MixCircuitState}};
 
@@ -45,6 +45,9 @@ pub struct Context {
     /// Cancel Handlers
     pub cancel_handlers: HashMap<u64, Vec<CancelHandler<Acknowledgement>>>,
     exit_rx: oneshot::Receiver<()>,
+
+    pub inputs: Vec<LargeField>,
+    pub input_acss_id_offset: usize,
     
     pub k_value: usize,
     pub log_k: usize,
@@ -68,13 +71,13 @@ pub struct Context {
     pub sh2t_send: Sender<(usize, Vec<LargeFieldSer>)>,
     pub sh2t_out_recv: Receiver<(usize, Replica, Option<Vec<LargeFieldSer>>)>,
 
-    pub acs_event_send: Sender<(usize,usize, Vec<LargeFieldSer>)>,
+    pub acs_event_send: Sender<(usize,usize, Vec<Hash>)>,
     pub acs_out_recv: Receiver<(usize,Vec<usize>)>,
 
     pub ctrbc_event_send: Sender<Vec<u8>>,
     pub ctrbc_out_recv: Receiver<(usize, Replica, Vec<u8>)>,
 
-    pub acs_2_event_send: Sender<(usize,usize, Vec<LargeFieldSer>)>,
+    pub acs_2_event_send: Sender<(usize,usize, Vec<Hash>)>,
     pub acs_2_out_recv: Receiver<(usize,Vec<usize>)>,
 
     // Housekeeping processes for tracking metrics of the protocol
@@ -92,6 +95,8 @@ pub struct Context {
     pub output_mask_state: RandomOutputMaskStruct,
     // Mix circuit state for mixing circuit implementation
     pub mix_circuit_state: MixCircuitState,
+
+    pub field_div_2: LargeField,
 
     pub tmp_mult_state: HashMap<usize, (Vec<LargeField>,Vec<Vec<LargeField>>)>,
 
@@ -218,10 +223,16 @@ impl Context {
         let log_k = (u64::BITS - k.leading_zeros() -1) as usize;
         let k = k as usize;
 
+        let sqrt_power = LargeField::from_hex(FIELD_DIV_2).unwrap();
+        
         let tot_sharings = (((k)*log_k*log_k)/(config.num_faults+1))+1;
         let num_batches = (tot_sharings.max(per_batch))/per_batch;
         // Ensure this is a power of 2. 
-        let inputs: Vec<LargeField> = (0..k).into_iter().map(|x| LargeField::from(x as u64)).collect();
+
+        let high_threshold = 2*config.num_faults+1;
+        let inputs_per_party = (k / high_threshold) + 1;
+        
+        let inputs: Vec<LargeField> = (0..inputs_per_party).into_iter().map(|x| LargeField::from((config.id*inputs_per_party + x) as u64)).collect();
         log::info!("Generating {} random sharings and proposing {} sharings over {} batches for mixing {} inputs", 8*(k/2)*log_k*log_k, tot_sharings, num_batches, k);
         tokio::spawn(async move {
             let mut c = Context {
@@ -240,6 +251,9 @@ impl Context {
                 threshold: 10000,
 
                 max_id: rbc_start_id,
+
+                inputs: inputs.clone(),
+                input_acss_id_offset: 500,
 
                 k_value: k,
                 log_k: log_k,
@@ -274,15 +288,17 @@ impl Context {
                 mult_state: MultState::new(),
                 verf_state: VerificationState::new(),
                 output_mask_state: RandomOutputMaskStruct::new(),
-                mix_circuit_state: MixCircuitState::new(inputs),
+                mix_circuit_state: MixCircuitState::new(),
                 tmp_mult_state: HashMap::default(),
 
+                field_div_2: sqrt_power,
+
                 use_fft: use_fft,
-                roots_of_unity: acss_ab::Context::gen_roots_of_unity(config.num_nodes),
+                roots_of_unity: gen_roots_of_unity(config.num_nodes),
 
                 total_sharings: tot_sharings,
                 max_depth: log_k*log_k,
-                output_mask_size: 2*k,
+                output_mask_size: 2*k/(config.num_faults+1),
 
                 preprocessing_mult_depth: 0,
                 delinearization_depth: 5000, 
@@ -422,7 +438,12 @@ impl Context {
                     )?;
                     log::info!("Received shares from ACSS module for instance {} from party {}",acss_msg_unwrap.0,acss_msg_unwrap.1);
                     // Check if the option is none. It means some party aborted
-                    self.handle_acss_term_msg(acss_msg_unwrap.0, acss_msg_unwrap.1, acss_msg_unwrap.2).await;
+                    if acss_msg_unwrap.0 >= self.input_acss_id_offset{
+                        self.handle_input_acss_termination(acss_msg_unwrap.0, acss_msg_unwrap.1, acss_msg_unwrap.2).await;
+                    }
+                    else{
+                        self.handle_acss_term_msg(acss_msg_unwrap.0, acss_msg_unwrap.1, acss_msg_unwrap.2).await;
+                    }
                 },
                 sh2t_msg = self.sh2t_out_recv.recv() => {
                     let sh2t_msg_unwrap = sh2t_msg.ok_or_else(||

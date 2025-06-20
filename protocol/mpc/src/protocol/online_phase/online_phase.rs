@@ -20,10 +20,12 @@ impl Context{
 
     pub async fn init_mixing(&mut self){
         // First find input wires. 
-        let masked_inputs = self.mix_circuit_state.inputs.clone();
-        let random_sharings_used_for_masking = self.mix_circuit_state.input_sharings.clone();
-
-        let input_sharings: Vec<LargeField> = masked_inputs.into_iter().zip(random_sharings_used_for_masking.into_iter()).map(|(input, sharing)| input-sharing).collect();
+        let mut input_sharings: Vec<LargeField> = self.mix_circuit_state.input_sharings.clone();
+        if input_sharings.len() < self.k_value {
+            log::error!("Not enough input sharings for mixing. Expected at least {}, got {}", self.k_value, input_sharings.len());
+            return;
+        }
+        input_sharings.truncate(self.k_value);
         // Now we have the input wires.
         self.mix_circuit_state.wire_sharings.insert(1, input_sharings);
         self.init_butterfly_mixing_level(1).await;
@@ -54,8 +56,8 @@ impl Context{
         let next_depth_wires: Vec<LargeField> = wire_pairs.into_iter().zip(multiplication_result.into_iter()).map(|(wirepair, mult_result)|{
             let sum = wirepair.0 + wirepair.1;
             
-            let wire1 = (sum + mult_result)*two_inverse;
-            let wire2 = (sum - mult_result)*two_inverse;
+            let wire1 = (sum.clone() + mult_result.clone())*two_inverse.clone();
+            let wire2 = (sum - mult_result)*two_inverse.clone();
 
             return vec![wire1, wire2];
         }).flatten().collect();
@@ -71,7 +73,7 @@ impl Context{
             self.terminate("Online".to_string()).await;
             log::info!("Starting verification of multiplications");
             // Start verification from here
-            self.delinearize_mult_tuples().await;    
+            self.delinearize_mult_tuples().await;
         }
         else{
             let next_depth = depth+1;

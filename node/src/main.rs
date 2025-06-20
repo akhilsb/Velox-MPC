@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
             exit_tx =
                 mpc::Context::spawn(
                     config, 
-                     per_batch,
+                    per_batch,
                     mixing_batch_size,
                     compression_factor,
                     node_normal

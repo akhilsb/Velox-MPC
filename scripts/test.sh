@@ -5,7 +5,7 @@ rm -rf /tmp/*.db &> /dev/null
 vals=(27000 27100 27200 27300)
 
 #rand=$(gshuf -i 1000-150000000 -n 1)
-TESTDIR=${TESTDIR:="testdata/hyb_16"}
+TESTDIR=${TESTDIR:="testdata/hyb_4"}
 TYPE=${TYPE:="release"}
 
 # Run the syncer now
@@ -20,7 +20,7 @@ TYPE=${TYPE:="release"}
     --comp $6 \
     --byzantine false > logs/syncer.log &
 
-for((i=0;i<16;i++)); do
+for((i=0;i<4;i++)); do
 ./target/$TYPE/node \
     --config $TESTDIR/nodes-$i.json \
     --ip ip_file \

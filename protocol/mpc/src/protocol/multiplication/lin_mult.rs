@@ -5,7 +5,7 @@ use crate::Context;
 use bincode::{Result};
 use crypto::hash::do_hash;
 use lambdaworks_math::{traits::ByteConversion, polynomial::Polynomial};
-use protocol::{LargeField, LargeFieldSer, FieldType};
+use protocol::{LargeField, LargeFieldSer};
 use rayon::prelude::{ ParallelIterator, IntoParallelRefIterator};
 use types::{Replica, WrapperMsg};
 
@@ -16,8 +16,8 @@ impl Context{
         // Pad shares until they become a multiple of 2t+1
         // Share inputs for later verification
         if depth <= self.max_depth {
-            let first_a_shares: Vec<LargeField> = a_vec_shares.clone().into_iter().map(|x| x[0]).collect();
-            let first_b_shares: Vec<LargeField> = b_vec_shares.clone().into_iter().map(|x| x[0]).collect();
+            let first_a_shares: Vec<LargeField> = a_vec_shares.clone().into_iter().map(|x| x[0].clone()).collect();
+            let first_b_shares: Vec<LargeField> = b_vec_shares.clone().into_iter().map(|x| x[0].clone()).collect();
             log::info!("Adding shares to verification state with a:{} b:{} at depth {}", first_a_shares.len(), first_b_shares.len(), depth);
             self.verf_state.add_mult_inputs(depth, first_a_shares, first_b_shares);
         }
@@ -126,21 +126,22 @@ impl Context{
             let polynomial = Polynomial::new(&z_vector); // Create polynomial from the computed zs
             // Create evaluations at roots of unity?
             // The first level evaluation should still be conducted over normal field elements, the second level evaluation can be conducted over roots of unity
-            let evaluations_res 
-                = Polynomial::evaluate_fft::<FieldType>(&polynomial, 1, Some(self.num_nodes));
+            // let evaluations_res 
+            //     = Polynomial::evaluate_fft::<FieldType>(&polynomial, 1, Some(self.num_nodes));
+            let evaluations_res: Result<Vec<LargeField>> = Ok(self.roots_of_unity.clone().into_iter().map(|el| polynomial.evaluate(&el)).collect());
             if evaluations_res.is_err(){
                 log::error!("Error evaluating polynomial at roots of unity: {:?}, switching to default evaluation", evaluations_res.err());
                 for p in 0..self.num_nodes {
                     let evaluation_point = Self::get_share_evaluation_point(p, self.use_fft, self.roots_of_unity.clone());
-                    let share = Self::evaluate_polynomial_from_coefficients_at_position(z_vector.clone(), evaluation_point) + o_vec[p];
+                    let share = Self::evaluate_polynomial_from_coefficients_at_position(z_vector.clone(), evaluation_point) + o_vec[p].clone();
                     
                     shares_party.get_mut(&p).unwrap().push(share);
                 }
             }
             else{
-                let evaluations = evaluations_res.unwrap();
+                let evaluations: Vec<LargeField> = evaluations_res.unwrap();
                 for (index,share) in (0..self.num_nodes).into_iter().zip(evaluations.into_iter()){
-                    shares_party.get_mut(&index).unwrap().push(share + o_vec[index]);
+                    shares_party.get_mut(&index).unwrap().push(share + o_vec[index].clone());
                 }
             }
         }
@@ -192,7 +193,7 @@ impl Context{
         // At L1, the evaluation point is the point at which the polynomials have been evaluated. 
         let evaluation_point = Self::get_share_evaluation_point(sender, self.use_fft.clone(), self.roots_of_unity.clone());
         for (index, share) in shares.into_iter().enumerate(){
-            depth_state.l1_shares[index].0.push(evaluation_point);
+            depth_state.l1_shares[index].0.push(evaluation_point.clone());
             depth_state.l1_shares[index].1.push(share);
         }
         
