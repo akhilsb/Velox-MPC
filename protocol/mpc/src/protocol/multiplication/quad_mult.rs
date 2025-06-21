@@ -1,6 +1,6 @@
 use crypto::hash::do_hash;
 use lambdaworks_math::{traits::ByteConversion, polynomial::Polynomial};
-use protocol::{LargeField, LargeFieldSer};
+use protocol::{LargeField, LargeFieldSer, vandermonde_matrix, inverse_vandermonde, matrix_vector_multiply};
 use rayon::prelude::{IntoParallelIterator, IndexedParallelIterator, ParallelIterator, IntoParallelRefIterator};
 use types::Replica;
 
@@ -65,9 +65,9 @@ impl Context{
 
         // Add shares to the depth state
         let depth_state = self.mult_state.get_single_depth_state(depth, false, shares_lf.len());
-        for (share,(indices, shares)) 
-                in shares_lf.into_iter().zip(depth_state.l1_shares.iter_mut()){
-            indices.push(evaluation_point.clone());
+        depth_state.l1_shares.0.push(evaluation_point.clone()); // Add the evaluation point to the indices
+        for (share,shares) 
+                in shares_lf.into_iter().zip(depth_state.l1_shares.1.iter_mut()){
             shares.push(share);
         }
 
@@ -76,13 +76,17 @@ impl Context{
         if depth_state.recv_share_count_l1 == self.num_nodes - self.num_faults{
             // Reconstruct secrets
             log::info!("Received n-t shares for quadratic protocol reconstruction at depth {}, reconstructing secrets", depth);
+            
+            let indices = depth_state.l1_shares.0.clone();
+            let vdm_matrix = vandermonde_matrix(indices);
+            let inv_vdm_matrix = inverse_vandermonde(vdm_matrix);
+
             let reconstructed_secrets: Vec<LargeField> 
-                = depth_state.l1_shares.par_iter()
-                .map(|(indices, evaluations)|{
-                    Polynomial::interpolate(
-                        indices, // Indices are the evaluation points
-                        evaluations // Evaluations are the shares
-                    ).unwrap().evaluate(&LargeField::zero())
+                = depth_state.l1_shares.1.par_iter()
+                .map(|evaluations|{
+                    let coefficients = matrix_vector_multiply(&inv_vdm_matrix, evaluations);
+                    let polynomial = Polynomial::new(&coefficients);
+                    return polynomial.evaluate(&LargeField::zero());
                 }).collect();
             
             depth_state.l1_shares_reconstructed.extend(reconstructed_secrets.clone());

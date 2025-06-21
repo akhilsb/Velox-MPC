@@ -5,7 +5,7 @@ use crate::Context;
 use bincode::{Result};
 use crypto::hash::do_hash;
 use lambdaworks_math::{traits::ByteConversion, polynomial::Polynomial};
-use protocol::{LargeField, LargeFieldSer};
+use protocol::{LargeField, LargeFieldSer, vandermonde_matrix, inverse_vandermonde, matrix_vector_multiply, FieldType};
 use rayon::prelude::{ ParallelIterator, IntoParallelRefIterator};
 use types::{Replica, WrapperMsg};
 
@@ -126,9 +126,8 @@ impl Context{
             let polynomial = Polynomial::new(&z_vector); // Create polynomial from the computed zs
             // Create evaluations at roots of unity?
             // The first level evaluation should still be conducted over normal field elements, the second level evaluation can be conducted over roots of unity
-            // let evaluations_res 
-            //     = Polynomial::evaluate_fft::<FieldType>(&polynomial, 1, Some(self.num_nodes));
-            let evaluations_res: Result<Vec<LargeField>> = Ok(self.roots_of_unity.clone().into_iter().map(|el| polynomial.evaluate(&el)).collect());
+            let evaluations_res= Polynomial::evaluate_fft::<FieldType>(&polynomial, 1, Some(self.num_nodes));
+            //let evaluations_res: Result<Vec<LargeField>> = Ok(self.roots_of_unity.clone().into_iter().map(|el| polynomial.evaluate(&el)).collect());
             if evaluations_res.is_err(){
                 log::error!("Error evaluating polynomial at roots of unity: {:?}, switching to default evaluation", evaluations_res.err());
                 for p in 0..self.num_nodes {
@@ -192,9 +191,9 @@ impl Context{
         }
         // At L1, the evaluation point is the point at which the polynomials have been evaluated. 
         let evaluation_point = Self::get_share_evaluation_point(sender, self.use_fft.clone(), self.roots_of_unity.clone());
+        depth_state.l1_shares.0.push(evaluation_point);
         for (index, share) in shares.into_iter().enumerate(){
-            depth_state.l1_shares[index].0.push(evaluation_point.clone());
-            depth_state.l1_shares[index].1.push(share);
+            depth_state.l1_shares.1[index].push(share);
         }
         
         depth_state.recv_share_count_l1 +=1;
@@ -203,8 +202,13 @@ impl Context{
         if depth_state.recv_share_count_l1 == self.num_nodes - self.num_faults {
             log::info!("Attempting L1 reconstruction at depth {}", depth);
             // Start reconstruction here
-            let secrets: Vec<LargeField> = depth_state.l1_shares.par_iter().map(|(indices,group_shares)|{
-                let poly = Polynomial::interpolate(indices, group_shares).unwrap();
+            let indices = depth_state.l1_shares.0.clone();
+            let vdm_matrix = vandermonde_matrix(indices);
+
+            let inv_vdm_matrix = inverse_vandermonde(vdm_matrix);
+            let secrets: Vec<LargeField> = depth_state.l1_shares.1.par_iter().map(|group_shares|{
+                let coefficients = matrix_vector_multiply(&inv_vdm_matrix, &group_shares);
+                let poly = Polynomial::new(&coefficients);
                 let secret = poly.evaluate(&LargeField::zero()); // Evaluate at zero to get the secret
                 return secret;
             }).collect();
@@ -237,11 +241,10 @@ impl Context{
         
         // At this depth, we are using roots of unity to conduct evaluation
         let evaluation_point = self.roots_of_unity.get(sender).clone().unwrap();
-
-        for (state,group_share) in depth_state.l2_shares.iter_mut().zip(group_shares.into_iter()){
+        depth_state.l2_shares.0.push(evaluation_point.clone());
+        for (state,group_share) in depth_state.l2_shares.1.iter_mut().zip(group_shares.into_iter()){
             let group_lf_share = LargeField::from_bytes_be(&group_share).unwrap();
-            state.0.push(evaluation_point.clone()); // Store the evaluation point
-            state.1.push(group_lf_share); // Store the share itself
+            state.push(group_lf_share); // Store the share itself
         }
 
         depth_state.recv_share_count_l2 +=1;
@@ -250,10 +253,14 @@ impl Context{
         if depth_state.recv_share_count_l2 == self.num_nodes - self.num_faults{
             log::info!("Attempting L2 reconstruction at depth {}", depth);
             // We have enough shares to reconstruct the polynomial
-            let reconstructed_secrets: Vec<LargeField> = depth_state.l2_shares.par_iter().map(|(indices,group_shares)|{
-                let poly = Polynomial::interpolate(indices, group_shares).unwrap();
-                //let secret = poly.evaluate(&LargeField::zero()); // Evaluate at zero to get the secret
-                return poly.coefficients;
+            let indices = depth_state.l2_shares.0.clone();
+            let vdm_matrix = vandermonde_matrix(indices);
+
+            let inv_vdm_matrix = inverse_vandermonde(vdm_matrix);
+            
+            let reconstructed_secrets: Vec<LargeField> = depth_state.l2_shares.1.par_iter().map(|group_shares|{
+                let coefficients = matrix_vector_multiply(&inv_vdm_matrix, &group_shares);
+                coefficients
             }).flatten().collect();
 
             depth_state.l2_shares_reconstructed.extend(reconstructed_secrets.clone());

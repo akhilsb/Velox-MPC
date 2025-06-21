@@ -11,9 +11,9 @@ pub struct MultState{
 
 pub struct SingleDepthState{
     // Each party sends one share from each group. This map is sorted group wise
-    pub l1_shares: Vec<(Vec<LargeField>,Vec<LargeField>)>,
+    pub l1_shares: (Vec<LargeField>,Vec<Vec<LargeField>>),
     pub l1_shares_reconstructed: Vec<LargeField>,
-    pub l2_shares: Vec<(Vec<LargeField>,Vec<LargeField>)>,
+    pub l2_shares: (Vec<LargeField>,Vec<Vec<LargeField>>),
     pub l2_shares_reconstructed: Vec<LargeField>,
 
     pub util_rand_sharings: Vec<LargeField>,
@@ -33,10 +33,10 @@ pub struct SingleDepthState{
 impl SingleDepthState{
     pub fn new(two_levels: bool) -> Self {
         SingleDepthState{
-            l1_shares: Vec::new(),
+            l1_shares: (Vec::new(),Vec::new()),
             l1_shares_reconstructed: Vec::new(),
             
-            l2_shares: Vec::new(),
+            l2_shares: (Vec::new(),Vec::new()),
             l2_shares_reconstructed: Vec::new(),
             
             util_rand_sharings: Vec::new(),
@@ -98,8 +98,8 @@ impl MultState{
         // Fill vectors of this structure
         for _ in 0..tot_groups_in_level {
             // For each group, we will have a vector of pairs (x,y) for each party
-            single_depth_state.l1_shares.push((Vec::new(), Vec::new()));
-            single_depth_state.l2_shares.push((Vec::new(), Vec::new()));
+            single_depth_state.l1_shares.1.push(Vec::new());
+            single_depth_state.l2_shares.1.push(Vec::new());
         }
 
         self.depth_share_map.entry(depth).or_insert_with(|| single_depth_state)
