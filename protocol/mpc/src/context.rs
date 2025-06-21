@@ -225,7 +225,7 @@ impl Context {
 
         let sqrt_power = LargeField::from_hex(FIELD_DIV_2).unwrap();
         
-        let tot_sharings = (((k)*log_k*log_k)/(config.num_faults+1))+1;
+        let tot_sharings = (((k)*log_k*log_k)/(config.num_faults+1))+20;
         let num_batches = (tot_sharings.max(per_batch))/per_batch;
         // Ensure this is a power of 2. 
 
