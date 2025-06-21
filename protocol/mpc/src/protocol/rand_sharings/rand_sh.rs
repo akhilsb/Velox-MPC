@@ -303,7 +303,7 @@ impl Context{
                         return None;
                     }
                     else{
-                        let shares_batch = shares.get(&index).unwrap();
+                        let shares_batch = shares.get(&index).unwrap().clone();
                         input_sharings.extend(shares_batch);
                     }
                 }     

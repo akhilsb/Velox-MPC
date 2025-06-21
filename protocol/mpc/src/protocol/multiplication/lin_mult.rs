@@ -5,7 +5,7 @@ use crate::Context;
 use bincode::{Result};
 use crypto::hash::do_hash;
 use lambdaworks_math::{traits::ByteConversion, polynomial::Polynomial};
-use protocol::{LargeField, LargeFieldSer, vandermonde_matrix, inverse_vandermonde, matrix_vector_multiply, FieldType};
+use protocol::{LargeField, LargeFieldSer, vandermonde_matrix, inverse_vandermonde, matrix_vector_multiply};
 use rayon::prelude::{ ParallelIterator, IntoParallelRefIterator};
 use types::{Replica, WrapperMsg};
 
@@ -126,8 +126,8 @@ impl Context{
             let polynomial = Polynomial::new(&z_vector); // Create polynomial from the computed zs
             // Create evaluations at roots of unity?
             // The first level evaluation should still be conducted over normal field elements, the second level evaluation can be conducted over roots of unity
-            let evaluations_res= Polynomial::evaluate_fft::<FieldType>(&polynomial, 1, Some(self.num_nodes));
-            //let evaluations_res: Result<Vec<LargeField>> = Ok(self.roots_of_unity.clone().into_iter().map(|el| polynomial.evaluate(&el)).collect());
+            //let evaluations_res= Polynomial::evaluate_fft::<FieldType>(&polynomial, 1, Some(self.num_nodes));
+            let evaluations_res: Result<Vec<LargeField>> = Ok(self.roots_of_unity.clone().into_iter().map(|el| polynomial.evaluate(&el)).collect());
             if evaluations_res.is_err(){
                 log::error!("Error evaluating polynomial at roots of unity: {:?}, switching to default evaluation", evaluations_res.err());
                 for p in 0..self.num_nodes {
