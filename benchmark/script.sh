@@ -3,7 +3,7 @@ for i in {1..3}
 do
 	echo "Running iteration $i"
 	fab rerun
-	sleep 3m
+	sleep 15s
 	fab logs
 	mv syncer.log syncer-$i.log
 	fab kill

@@ -246,7 +246,7 @@ class Bench:
         Print.info('Booting primaries...')
         st_time = round(time.time() * 1000) + 60000
         mixing_batch_size = 256
-        per_batch = 800
+        per_batch = 2000
         compression_factor = 10
 
         for i,ip in enumerate(hosts):
@@ -352,8 +352,8 @@ class Bench:
         #     #c.put(PathMaker.parameters_file(), '.')
         Print.info('Booting primaries...')
         st_time = round(time.time() * 1000) + 60000
-        mixing_batch_size = 256
-        per_batch = 800
+        mixing_batch_size = 1024
+        per_batch = 10000
         compression_factor = 10
         
 

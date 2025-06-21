@@ -27,7 +27,9 @@ impl Context{
             .map(|el| LargeField::from_bytes_be(&el).unwrap())
             .collect();
 
-        input_sharing_state.insert(input_sharing_inst, shares_deser);
+        for (index, share) in shares_deser.iter().enumerate(){
+            input_sharing_state.insert(input_sharing_inst+index, vec![share.clone()]);
+        }
         self.verify_sender_termination(sender).await;
     }
 }
