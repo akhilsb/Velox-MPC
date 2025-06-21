@@ -63,18 +63,20 @@ impl Context{
                         panic!("Square root is None");
                     }
                     let (p1,p2) = sqrt_res.unwrap();
+                    
                     if p1.value().cmp(field_div_2.value()) == Ordering::Greater{
                         //return p1;
-                        return p1.inv().unwrap();
+                        return p1.inv();
                     }
                     else {
                         //return p2;
-                        return p2.inv().unwrap();
+                        return p2.inv();
                     }
-                }).collect();
+                }).filter(|x| x.is_ok())
+                .map(|x| x.unwrap()).collect();
             
             self.mix_circuit_state.rand_bit_inverse_recon_values.extend(reconstructed_square_inverses);
-            log::info!("Reconstructed random bit shares: {:?}", self.mix_circuit_state.rand_bit_inverse_recon_values);
+            log::info!("Reconstructed random bit shares of size: {}", self.mix_circuit_state.rand_bit_inverse_recon_values.len());
             
             self.verify_rand_bit_reconstruction().await;
         }
