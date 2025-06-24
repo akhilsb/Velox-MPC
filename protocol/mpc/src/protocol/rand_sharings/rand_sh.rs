@@ -40,18 +40,18 @@ impl Context{
 
         // Initiate input sharing module as well
         // Share inputs as well using ACSS-Abort. 
-        // for (index,input) in self.inputs.clone().into_iter().enumerate(){
-        //     log::info!("Initiating input sharing in preprocessing phase for input: {:?}", input);
-        //     let status = self.acss_ab_send.send((self.input_acss_id_offset+ index, vec![input.to_bytes_be()])).await;
-        //     if status.is_err(){
-        //         log::error!("Failed to send input value to ACSS protocol because of error: {:?}", status.err().unwrap());
-        //     }
-        // }
-        let inputs_ser = self.inputs.iter().map(|x| x.to_bytes_be()).collect();
-        let status = self.acss_ab_send.send((self.input_acss_id_offset, inputs_ser)).await;
-        if status.is_err(){
-            log::error!("Failed to send input value to ACSS protocol because of error: {:?}", status.err().unwrap());
+        for (index,input) in self.inputs.clone().into_iter().enumerate(){
+            log::info!("Initiating input sharing in preprocessing phase for input: {:?}", input);
+            let status = self.acss_ab_send.send((self.input_acss_id_offset+ index, vec![input.to_bytes_be()])).await;
+            if status.is_err(){
+                log::error!("Failed to send input value to ACSS protocol because of error: {:?}", status.err().unwrap());
+            }
         }
+        // let inputs_ser = self.inputs.iter().map(|x| x.to_bytes_be()).collect();
+        // let status = self.acss_ab_send.send((self.input_acss_id_offset, inputs_ser)).await;
+        // if status.is_err(){
+        //     log::error!("Failed to send input value to ACSS protocol because of error: {:?}", status.err().unwrap());
+        // }
 
         let zeros: Vec<Vec<LargeFieldSer>> = (0..3*num_batches).into_par_iter().map(|_| {
             let rand_values: Vec<LargeFieldSer> = (0..batch_size).into_par_iter().map(|_| LargeField::zero().to_bytes_be()).collect();
@@ -135,6 +135,10 @@ impl Context{
             return;
         }
         if !self.mix_circuit_state.input_acss_shares.contains_key(&sender){
+            return;
+        }
+        if self.rand_sharings_state.acss_completed_parties.contains(&sender){
+            log::debug!("ACSS, Sh2t, and AVSS already completed for sender {} for all batches", sender);
             return;
         }
         let shares_batches_map = self.rand_sharings_state.shares.get_mut(&sender).unwrap();
