@@ -23,25 +23,20 @@ args:
         long: protocol
         help: Protocol to run
         takes_value: true
-    - input:
-        short: i
-        long: input
-        help: Input value to run protocol on
-        takes_value: true
     - syncer:
         short: y
         long: syncer
         help: IPs for the syncer to connect to
         takes_value: true
-    - batches:
+    - messages:
         short: t
-        long: batches
-        help: Batch size for message mixing
+        long: messages
+        help: Number of messages to broadcast anonymously
         takes_value: true
-    - per:
-        short: r
-        long: per
-        help: Number of secrets to pack into each batch
+    - batchsize:
+        short: b
+        long: batchsize
+        help: Number of secrets to share in each batch in the preprocessing phase
         takes_value: true
     - comp:
         short: o

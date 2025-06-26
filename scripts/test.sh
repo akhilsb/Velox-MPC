@@ -13,11 +13,10 @@ TYPE=${TYPE:="release"}
     --config $TESTDIR/nodes-0.json \
     --ip ip_file \
     --protocol sync \
-    --input 100 \
     --syncer $1 \
-    --batches $4 \
-    --per $5 \
-    --comp $6 \
+    --messages $2 \
+    --batchsize $3 \
+    --comp $4 \
     --byzantine false > logs/syncer.log &
 
 for((i=0;i<4;i++)); do
@@ -25,12 +24,11 @@ for((i=0;i<4;i++)); do
     --config $TESTDIR/nodes-$i.json \
     --ip ip_file \
     --protocol mpc \
-    --input $2 \
     --syncer $1 \
-    --batches $4 \
-    --per $5 \
-    --comp $6 \
-    --byzantine $3 > logs/$i.log &
+    --messages $2 \
+    --batchsize $3 \
+    --comp $4 \
+    --byzantine false > logs/$i.log &
 done
 
 # Kill all nodes sudo lsof -ti:7000-7015 | xargs kill -9

@@ -21,16 +21,15 @@ async fn main() -> Result<()> {
     let vss_type = m
         .value_of("protocol")
         .expect("Unable to detect protocol to run");
-    let _input_value = m.value_of("input").expect("Unable to read input string");
     let syncer_file = m
         .value_of("syncer")
         .expect("Unable to parse syncer ip file");
     let mixing_batch_size = m
-        .value_of("batches")
+        .value_of("messages")
         .expect("Unable to parse number of batches")
         .parse::<usize>().unwrap();
     let per_batch = m
-        .value_of("per")
+        .value_of("batchsize")
         .expect("Unable to parse per batch")
         .parse::<usize>().unwrap();
     let compression_factor = m

@@ -35,7 +35,7 @@ class CommandMaker:
         assert isinstance(debug, bool)
         #v = '-vvv' if debug else '-vv'
         return (f'ulimit -n 5000; ./node --config {key} --ip ip_file '
-                f'--protocol mpc --input xx --syncer syncer --batches {mixing_batch_size} --per {per_batch} --comp {compression_factor} --byzantine false')
+                f'--protocol mpc --syncer syncer --messages {mixing_batch_size} --batchsize {per_batch} --comp {compression_factor} --byzantine false')
     
     @staticmethod
     def run_syncer(key,batches,per,compression_factor,debug=False):
@@ -43,7 +43,7 @@ class CommandMaker:
         assert isinstance(debug, bool)
         #v = '-vvv' if debug else '-vv'
         return (f'ulimit -n 5000; ./node --config {key} --ip ip_file '
-                f'--protocol sync --input xx --syncer syncer --batches {batches} --per {per} --comp {compression_factor} --byzantine false')
+                f'--protocol sync --syncer syncer --messages {batches} --batchsize {per} --comp {compression_factor} --byzantine false')
 
     @staticmethod
     def unzip_tkeys(fileloc, debug=False):
