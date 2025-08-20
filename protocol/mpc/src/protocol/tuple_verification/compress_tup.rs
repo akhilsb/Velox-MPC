@@ -342,7 +342,7 @@ impl Context{
             if a_sec.clone()*b_sec.clone() == c_sec{
                 log::info!("handle_reconstruct_verf_output_sharing: Multiplication constraint holds.");
                 // Output from here
-                self.terminate("verification".to_string()).await;
+                self.terminate("verification".to_string(),vec![]).await;
                 // Code goes back to the output phase from here
                 self.reconstruct_output().await;
             }

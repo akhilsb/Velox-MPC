@@ -168,7 +168,8 @@ impl Context{
                     outputs.push(trimmed_str);
                 }
                 println!("Broadcast output: {:?}", outputs);
-                self.terminate("output".to_string()).await;
+                let ser_msg = bincode::serialize(&outputs).unwrap();
+                self.terminate("output".to_string(), ser_msg).await;
             }
         }
     }

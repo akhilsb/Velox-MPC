@@ -3,7 +3,7 @@ use std::{collections::HashMap, ops::{Add, Mul}};
 use lambdaworks_math::{traits::ByteConversion};
 use protocol::{LargeField, LargeFieldSer, rand_field_element};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
-use types::{Replica, RBCSyncMsg, SyncMsg, SyncState};
+use types::{Replica, ProtSyncMsg, SyncMsg, SyncState};
 use crate::{context::Context};
 
 impl Context{
@@ -348,10 +348,11 @@ impl Context{
         acs_indexed_2t_share_groups
     }
     //Invoke this function once you terminate the protocol
-    pub async fn terminate(&mut self, data: String) {
-        let rbc_sync_msg = RBCSyncMsg{
+    pub async fn terminate(&mut self, status: String, value: Vec<u8>) {
+        let rbc_sync_msg = ProtSyncMsg{
             id: 1,
-            msg: data,
+            status,
+            value
         };
 
         let ser_msg = bincode::serialize(&rbc_sync_msg).unwrap();

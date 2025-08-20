@@ -70,7 +70,7 @@ impl Context{
                 Self::get_share_evaluation_point(self.myid, self.use_fft, self.roots_of_unity.clone())
                 ,next_depth_wires
             ));
-            self.terminate("Online".to_string()).await;
+            self.terminate("Online".to_string(), vec![]).await;
             log::info!("Starting verification of multiplications");
             // Start verification from here
             self.delinearize_mult_tuples().await;

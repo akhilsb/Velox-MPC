@@ -149,7 +149,7 @@ impl Context{
         self.mix_circuit_state.rand_bit_sharings.extend(final_rand_bit_sharings.clone());
 
         //self.mix_circuit_state.rand_bit_sharings.extend(shares_next_depth);
-        self.terminate("Preprocessing".to_string()).await;
+        self.terminate("Preprocessing".to_string(), vec![]).await;
         // Start next depth and real circuit execution
         self.init_mixing().await;
     }
