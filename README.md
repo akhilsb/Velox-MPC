@@ -1,4 +1,4 @@
-# Computation and Communication efficient Asynchronous MPC from Lightweight Cryptography
+# Scalable Asynchronous MPC from Lightweight Cryptography
 
 <img src="images/velox_logo.png" width="400"/>
 
