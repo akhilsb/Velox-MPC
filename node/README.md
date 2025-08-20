@@ -1,0 +1,5 @@
+## Node program
+This module initiates the MPC protocol. The `main.rs` file takes a set of runtime parameters as defined in the `cli.yml` file, which internally uses Rust's `clap` module for inputting these parameters through command line arguments. 
+
+### Synchronizer
+Each node runs as an independent process, which communicates with other nodes through sockets. Apart from the `n` nodes running the protocol, the system also spawns a process called `syncer`, short for *synchronizer*. The syncer is responsible for measuring latency of completion. It reliably measures the system's latency by issuing `START` and `STOP` commands to all nodes. The nodes begin executing the protocol only after the syncer verifies that all nodes are online, and issues the `START` command by sending a message to all nodes. Further, the nodes send a `OUTPUT` message to the syncer once they terminate the protocol. The syncer records both start and termination times of all processes, which allows it to accurately measure the latency of each protocol.
