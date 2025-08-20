@@ -1,5 +1,5 @@
 [package]
-name = "avid"
+name = "avid_ab"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,10 +8,10 @@ edition = "2021"
 [dependencies]
 protocol = { package = "protocol", path="../"}
 
-consensus = {package = "consensus", git="https://github.com/akhilsb/acss-rs.git"}
-config = { package = "config", git="https://github.com/akhilsb/acss-rs.git"}
-types = { package = "types", git="https://github.com/akhilsb/acss-rs.git"}
-crypto = { package = "crypto", git="https://github.com/akhilsb/acss-rs.git"}
+consensus = {package = "consensus", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
+config = { package = "config", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
+types = { package = "types", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
+crypto = { package = "crypto", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
 
 tokio = { version = "1.0", features = ["full"] }
 futures = "^0.3"

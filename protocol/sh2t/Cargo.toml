@@ -6,14 +6,14 @@ edition = "2021"
 [dependencies]
 protocol = { package = "protocol", path="../"}
 
-consensus = {package = "consensus", git="https://github.com/akhilsb/acss-rs.git"}
-ctrbc  = {package = "ctrbc", git= "https://github.com/akhilsb/acss-rs.git"}
-ra = {package = "ra", git= "https://github.com/akhilsb/acss-rs.git"}
-config = { package = "config", git="https://github.com/akhilsb/acss-rs.git"}
-types = { package = "types", git="https://github.com/akhilsb/acss-rs.git"}
-crypto = { package = "crypto", git="https://github.com/akhilsb/acss-rs.git"}
+consensus = {package = "consensus", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
+ctrbc  = {package = "ctrbc", git= "https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
+ra = {package = "ra", git= "https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
+config = { package = "config", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
+types = { package = "types", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
+crypto = { package = "crypto", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
 
-avid = {package = "avid", path = "../avid"}
+avid_ab = {package = "avid_ab", path = "../avid_ab"}
 
 tokio = { version = "1.0", features = ["full"] }
 futures = "^0.3"

@@ -8,12 +8,12 @@ edition = "2021"
 [dependencies]
 protocol = { package = "protocol", path="../"}
 
-consensus = {package = "consensus", git="https://github.com/akhilsb/acss-rs.git"}
-config = { package = "config", git="https://github.com/akhilsb/acss-rs.git"}
-types = { package = "types", git="https://github.com/akhilsb/acss-rs.git"}
-crypto = { package = "crypto", git="https://github.com/akhilsb/acss-rs.git"}
-ctrbc = { package = "ctrbc", git="https://github.com/akhilsb/acss-rs.git" }
-acs = {package = "acs", git="https://github.com/akhilsb/acss-rs.git"}
+consensus = {package = "consensus", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
+config = { package = "config", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
+types = { package = "types", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
+crypto = { package = "crypto", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
+ctrbc = { package = "ctrbc", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git" }
+acs = {package = "acs", git="https://github.com/akhilsb/Secure-Distributed-Computing-Protocols.git"}
 acss_ab = { package = "acss_ab", path = "../acss_ab" }
 sh2t = { package = "sh2t", path = "../sh2t" }
 
