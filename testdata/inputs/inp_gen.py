@@ -14,9 +14,6 @@ num_files = 112
 lines_per_file = 100
 max_bytes = 31  # must be < 248 bits
 
-# Create output directory
-os.makedirs("output_files", exist_ok=True)
-
 for file_idx in range(0, num_files):
     filename = f"input_{file_idx}.txt"
     with open(filename, "w") as f:
