@@ -1,6 +1,6 @@
 # Computation and Communication efficient Asynchronous MPC from Lightweight Cryptography
 
-<img src="images/velox_logo.png" width="200"/>
+<img src="images/velox_logo.png" width="400"/>
 
 This repository implements anonymous broadcast using Velox, an asynchronous MPC protocol. This code has been written as a research prototype and has not been vetted for security. Therefore, this repository can contain serious security vulnerabilities. Please use at your own risk. 
 
