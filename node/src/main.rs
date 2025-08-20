@@ -73,6 +73,23 @@ async fn main() -> Result<()> {
         log::info!("Logging the file f {}", f_str);
         config.update_config(util::io::file_to_ips(f.to_string()));
     }
+    // let string_to_hex_string = |s: &str| -> String {
+    //     let mut hex_string = String::new();
+    //     for byte in s.as_bytes() {
+    //         hex_string.push_str(&format!("{:02x}", byte));
+    //     }
+    //     hex_string
+    // };
+    // let largefield_ele = LargeField::from_hex(string_to_hex_string("ABCDEFGHIJKLMNOPQRST").as_str()).unwrap();
+    
+    // log::info!("Printing converted field element {:?}", largefield_ele);
+    
+    // let reverse_conversion = |fe: &LargeField| -> String {
+    //     let bytes = fe.to_bytes_be();
+    //     let s: String = bytes.iter().map(|&b| b as char).collect();
+    //     s
+    // };
+    // log::info!("Printing reverse converted field element {:?}", reverse_conversion(&largefield_ele));
     let config = config;
     // Start the Reliable Broadcast protocol
     let exit_tx;
@@ -94,7 +111,10 @@ async fn main() -> Result<()> {
                     mixing_batch_size,
                     compression_factor,
                     node_normal
-                ).unwrap();
+                ).or_else(|e| {
+                    log::error!("Error starting MPC protocol: {}", e);
+                    Err(e)
+                })?;
         }
         // "sh2t" => {
         //     let (_req_sender,req_receiver) = channel(10000);

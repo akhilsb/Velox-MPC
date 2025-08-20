@@ -23,7 +23,7 @@ use types::{Replica, WrapperMsg, SyncMsg, SyncState};
 
 use crypto::{aes_hash::HashState, hash::Hash};
 
-use crate::{msg::ProtMsg, handlers::{sync_handler::SyncHandler, handler::Handler}, protocol::{RandSharings, MultState, VerificationState, rand_sharings::rand_mask::RandomOutputMaskStruct, online_phase::mix_circuit_state::MixCircuitState}};
+use crate::{handlers::{handler::Handler, sync_handler::SyncHandler}, input::read_input_from_files, msg::ProtMsg, protocol::{online_phase::mix_circuit_state::MixCircuitState, rand_sharings::rand_mask::RandomOutputMaskStruct, MultState, RandSharings, VerificationState}};
 
 pub struct Context {
     /// Networking context
@@ -231,8 +231,15 @@ impl Context {
 
         let high_threshold = 2*config.num_faults+1;
         let inputs_per_party = (k / high_threshold) + 1;
-        
-        let inputs: Vec<LargeField> = (0..inputs_per_party).into_iter().map(|x| LargeField::from((config.id*inputs_per_party + x) as u64)).collect();
+
+        let file_location_1 = format!("testdata/inputs/input_{}.txt", config.id);
+        let file_location_2 = format!("input_{}.txt", config.id);
+
+        let inputs = read_input_from_files(file_location_1.as_str(),file_location_2.as_str(),inputs_per_party).or_else(|e| {
+            log::error!("Error reading input files: {}", e);
+            Err(e)
+        })?;
+
         log::info!("Generating {} random sharings and proposing {} sharings over {} batches for mixing {} inputs", 8*(k/2)*log_k*log_k, tot_sharings, num_batches, k);
         tokio::spawn(async move {
             let mut c = Context {

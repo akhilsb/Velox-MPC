@@ -13,10 +13,10 @@ TYPE=${TYPE:="release"}
     --config $TESTDIR/nodes-0.json \
     --ip ip_file \
     --protocol sync \
-    --syncer $1 \
-    --messages $2 \
-    --batchsize $3 \
-    --comp $4 \
+    --syncer $TESTDIR/syncer \
+    --messages $1 \
+    --batchsize $2 \
+    --comp $3 \
     --byzantine false > logs/syncer.log &
 
 for((i=0;i<4;i++)); do
@@ -24,10 +24,10 @@ for((i=0;i<4;i++)); do
     --config $TESTDIR/nodes-$i.json \
     --ip ip_file \
     --protocol mpc \
-    --syncer $1 \
-    --messages $2 \
-    --batchsize $3 \
-    --comp $4 \
+    --syncer $TESTDIR/syncer \
+    --messages $1 \
+    --batchsize $2 \
+    --comp $3 \
     --byzantine false > logs/$i.log &
 done
 

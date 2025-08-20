@@ -1,4 +1,4 @@
-# Scalable Asynchronous MPC from Lightweight Cryptography
+# Scalable Anonymous Broadcast from  Asynchronous MPC using Velox
 
 <img src="images/velox_logo.png" width="400"/>
 
@@ -44,10 +44,17 @@ sudo apt-get install libgmp3-dev
 $ ./target/release/genconfig --base_port 15000 --client_base_port 19000 --client_run_port 19500 --NumNodes 4 --blocksize 100 --delay 100 --target testdata/hyb_4/ --local true
 ```
 
-6. After generating the configuration files, run the script `test.sh` in the scripts folder with the following command line arguments. This command starts the protocol with `4` parties. 
+## Running the code
+The protocol takes the following command line arguments. 
+- batchsize: ACSS parameter deciding number of secrets to be batched within each ACSS instance. 
+- compression_factor: The degree of the polynomial in the multiplication tuple verification phase. A higher degree implies lower round complexity but higher computation complexity. 
+
+6. After generating the configuration files, run the script `test.sh` in the scripts folder with the following command line arguments. 
+This command starts the protocol with `4` parties. 
 ```
-$ ./scripts/test.sh testdata/hyb_4/syncer {num_messages} {batchsize} {compression_factor}
+$ ./scripts/test.sh testdata/hyb_4/syncer {batchsize} {compression_factor}
 ```
+This command reads the messages from the file `broadcast/test-{i}.txt` 
 
 7. Substitute `{num_messages}` with the `k` value, where `k` is the number of messages.  Example values include `k=256,512,1024...`. The `{batchsize}` and `{compression_factor}` parameters tune the protocol for performance. Currently, the protocol only takes the number `k` as input. It generates a random set of `k` messages for broadcast. This can be improved by making the protocol instead take an input from a file. `{batchsize}` decides how many secrets the protocol packs into a single ACSS-Ab instance. `{compression_factor}` is the level of compression in the verification phase. Please refer to the paper for more details. 
 

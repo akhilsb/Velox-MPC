@@ -156,9 +156,18 @@ impl Context{
             else{
                 let masked_outputs = masked_outputs.unwrap();
                 let unmasked_outputs: Vec<LargeField> = masked_outputs.into_iter().zip(rand_recon_values.into_iter()).map(|(output,mask)| output-mask).collect();
+                
+                let mut outputs = Vec::new();
                 for out in unmasked_outputs{
-                    log::info!("Unmasked output wire: {}", out);
+                    let reverse_conversion = |fe: &LargeField| -> String {
+                        let bytes = fe.to_bytes_be();
+                        let s: String = bytes.iter().map(|&b| b as char).collect();
+                        s
+                    };
+                    let trimmed_str = reverse_conversion(&out).trim_matches('\0').to_string();
+                    outputs.push(trimmed_str);
                 }
+                println!("Broadcast output: {:?}", outputs);
                 self.terminate("output".to_string()).await;
             }
         }
