@@ -9,43 +9,10 @@ from benchmark.instance import InstanceManager
 from benchmark.remote import Bench, BenchError
 from benchmark.utils import PathMaker
 
-n = 16
+n = 64
 num_messages = 256
-batch_size = 1000
+batch_size = 500
 compression_factor = 10
-
-@task
-def log_v(ctx, debug=True):
-    ''' Run benchmarks on localhost '''
-    bench_params = {
-        'faults': 0,
-        'nodes': n,
-        'workers': 1,
-        'rate': 8_000,
-        'tx_size': 256,
-        'duration': 20,
-        'num_messages': num_messages,
-        'batch_size': batch_size,
-        'compression_factor': compression_factor
-    }
-    node_params = {
-        'header_size': 1_000,  # bytes
-        'max_header_delay': 200,  # ms
-        'gc_depth': 50,  # rounds
-        'sync_retry_delay': 10_000,  # ms
-        'sync_retry_nodes': 3,  # number of nodes
-        'batch_size': 500_000,  # bytes
-        'max_batch_delay': 200  # ms
-    }
-    try:
-        # Parse logs and return the parser.
-        Print.info('Parsing logs...')
-        result =  LogParser.process(PathMaker.logs_path(), faults=bench_params.faults)
-        #ret = LocalBench(bench_params, node_params).run(debug)
-        print(result.result())
-    except BenchError as e:
-        Print.error(e)
-
 
 @task
 def create(ctx, nodes=n):

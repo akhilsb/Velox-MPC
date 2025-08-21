@@ -4,7 +4,7 @@ import json
 from collections import defaultdict, OrderedDict
 
 # Regex to extract latency array and value from line
-line_pattern = re.compile(r"with latency\s+(\[[^\]]+\])\s+and value\s+\{\"([^\"]+)\"\}")
+line_pattern = re.compile(r'with latency \[([^\]]+)\], status \{"([^"]+)"\}')
 
 # Ordered dictionary to maintain insertion order
 latency_by_category = OrderedDict()
@@ -16,14 +16,11 @@ for filepath in sorted(glob.glob("syncer-*.log")):
             match = line_pattern.search(line)
             if match:
                 latency_str, category = match.groups()
-                try:
-                    latencies = json.loads(latency_str)
-                    if category not in latency_by_category:
-                        latency_by_category[category] = []
-                    latency_by_category[category].extend(latencies)
-                except json.JSONDecodeError:
-                    print(f"Invalid latency array in line: {line.strip()}")
-
+                latency_array = [int(x.strip()) for x in latency_str.split(',')]
+                if category not in latency_by_category:
+                    latency_by_category[category] = []
+                latency_by_category[category].extend(latency_array)
+                
 # Compute average latencies
 average_latencies = OrderedDict()
 for category, latencies in latency_by_category.items():

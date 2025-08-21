@@ -1,7 +1,15 @@
 # Running Benchmarks
 Based on [Narwhal](https://github.com/facebookresearch/narwhal). 
 
-This document explains how to benchmark the codebase and read benchmarks' results. It also provides a step-by-step tutorial to run benchmarks on [Amazon Web Services (AWS)](https://aws.amazon.com) accross multiple data centers (WAN).
+This document explains how to benchmark the codebase and read benchmarks' results. It also provides a step-by-step tutorial to run benchmarks on [Amazon Web Services (AWS)](https://aws.amazon.com) across multiple data centers (WAN).
+
+The configuration requirements for this protocol can be specified in the `fabfile.py` file in the first four lines of code. 
+```python
+n = 16
+num_messages = 256
+batch_size = 1000
+compression_factor = 10
+```
 
 ## Setup
 The core protocols are written in Rust, but all benchmarking scripts are written in Python and run with [Fabric](http://www.fabfile.org/). To run the remote benchmark, install the python dependencies:
@@ -98,10 +106,10 @@ fab --list
 The command `fab create` creates new AWS instances; open [fabfile.py](https://github.com/akhilsb/hashrand-rs/blob/master/benchmark/fabfile.py) and locate the `create` task:
 ```python
 @task
-def create(ctx, nodes=2):
+def create(ctx, nodes=n):
     ...
 ```
-The parameter `nodes` determines how many instances to create in *each* AWS region. That is, if you specified 1 AWS region as in the example of step 3, setting `nodes=16` will create 16 machines:
+The parameter `nodes`, set in the beginning of the `fabfile.py` file, determines how many instances to create in *each* AWS region. That is, if you specified 1 AWS region as in the example of step 3, setting `nodes=16` will create 16 machines:
 ```bash
 fab create
 
@@ -144,71 +152,67 @@ This command first updates all machines with the latest commit of the GitHub rep
 It then generates and uploads the configuration files to each machine, and runs the benchmarks with the specified parameters. Make sure to change the number of nodes in the `remote` function. 
 The input parameters for the protocol can be set in the `_config` function in the benchmark/remote.py file in the `benchmark` folder. 
 
-### Step 6: Download logs
+### Step 6: Download logs and Compile results
 The following command downloads the log file from the `syncer` titled `syncer-n_{num_parties}_{num_messages}_{batch_size}_{compression_factor}.log`. 
 ```bash
 fab logs
 ```
 This file contains the details about the latency of the protocol and the outputs of the nodes. 
-Note that this log file needs to be downloaded only after allowing the protocol sufficient time to terminate (Ideally within 5 minutes). I
-f anything goes wrong during a benchmark, you can always stop it by running `fab kill`.
+Note that this log file needs to be downloaded only after allowing the protocol sufficient time to terminate (Ideally within 5 minutes). If anything goes wrong during a benchmark, you can always stop it by running `fab kill`.
+Once this command terminates, cd into the `logs/` directory and run the `stats.py` file to generate results. 
+```bash
+python3 compile_results.py
+```
+This command should print out the results as follows. 
+```
+Average latencies per category:
+  Preprocessing: 3440.64 ms
+  Online: 3714.00 ms
+  verification: 4110.00 ms
+  output: 4288.73 ms
 
+Latency differences between subsequent categories:
+  Preprocessing → Online: 273.36 ms
+  Online → verification: 396.00 ms
+  verification → output: 178.73 ms
+```
+
+### Step 7: Cleanup
 Be sure to kill the prior benchmark using the following command before running a new benchmark. 
+Additionally, clean up the files created by the benchmark by running the `cleanup.sh` script.  
+```bash
+fab kill
+./cleanup.sh
 ```
-$ fab kill
-```
-
-### Running the benchmark for different numbers of nodes
 After running the benchmarks for a given number of nodes, destroy the testbed with the following command. 
 ```bash
 fab destroy
 ```
 This command destroys the testbed and terminates all created AWS instances.
+For running a benchmark with a different testbed setup, execute the pipeline from Step 3. 
 
-# Artifact Evaluation on Cloudlab/Custom testbeds
-It is possible to evaluate our artifact on CloudLab/Chameleon. However, it would require us to change a few lines of code in the submitted artifact. The benchmarking code in the current artifact works in the following way.
+# Reproducing the results in the paper
+To reproduce the results in the paper, run Velox in a LAN testbed (with a single region for instance `us-east-1`) with `n=16,64,112` parties. 
+In the `n=16` testbed, run Velox with the following configurations in the `fabfile.py` file.
+**Note that we substantially improved our code from the time of submission, so the protocol is a lot faster at these configurations, which result in lower runtimes.** 
+1. `num_messages=256`,`batch_size=2000`, `compression_factor=10`
+2. `num_messages=512`,`batch_size=2000`, `compression_factor=10`
+3. `num_messages=1024`,`batch_size=2000`, `compression_factor=10`
 
-1. It takes a user's AWS credentials and uses the AWS boto3 SDK to spawn AWS EC2 machines across the specified regions. 
-2. It also establishes a network between them using the boto3 SDK. 
-3. It gets the IP addresses of the spawned machines and installs the artifact in each machine using `tmux` and `SSH`. 
-4. It then runs the artifact by executing a series of commands on the machines using `tmux` and `SSH`.
+In the `n=64` testbed, run Velox with the following configurations in the `fabfile.py` file. 
+1. `num_messages=256`,`batch_size=500`, `compression_factor=10`
+2. `num_messages=512`,`batch_size=500`, `compression_factor=10`
+3. `num_messages=1024`,`batch_size=500`, `compression_factor=10`
 
-We describe the series of modifications to this structure to run benchmarks on Cloudlab/Chameleon. 
-## Setting up the testbed
-1. Running the benchmark on Cloudlab or Chameleon requires you to skip the first two steps and create machines manually. Therefore, instead of running `fab create` and `fab start` commands, create machines manually on Cloudlab/Chameleon, and establish a network between them. This network should enable processes on the machines to communicate with each other through `TCP`. 
+In the `n=112` testbed, run Velox with the following configurations in the `fabfile.py` file. 
+1. `num_messages=256`,`batch_size=300`, `compression_factor=10`
+2. `num_messages=512`,`batch_size=300`, `compression_factor=10`
 
-## Installing the Artifact
-2. The `hosts()` function in the file `benchmark/benchmark/instance.py` is responsible for configuring hosts in the network. We changed the function to the following for evaluation on custom testbeds. In case the code needs to be run on AWS, uncomment the commented part and comment the uncommented part of the `hosts` function. 
-```
-# To run on CloudLab/Chameleon, create a list of ip addresses and add them to a file titled 'instance_ips'.
-def hosts(self, flat=False):
-    import json
-    with open("instance-ips.json") as json_file:
-        json_data = json.load(json_file)
-        if flat:
-            return [x for y in json_data.values() for x in y]        
-        else:
-            return json_data
-    #try:
-    #    _, ips = self._get(['pending', 'running'])
-    #    return [x for y in ips.values() for x in y] if flat else ips
-    #except ClientError as e:
-    #    raise BenchError('Failed to gather instances IPs', AWSError(e))
-```
-3. Then, create a file with the name `instance-ips.json` in the `benchmark/` directory. The file should have the following structure. The key of each item in the map should be the location where the nodes are located, and the value is an array of ip addresses in that region. The benchmark distributes processes evenly in machines across different regions. In case all nodes are located in one region, use one key to list all the ip addresses. **Note that the total number of ip addresses listed must be at least as much as the number of processes being run in the benchmark. To run multiple processes on a single machine, list the ip address multiple times in the array. For example, to run two processes on the machine with ip `10.43.0.231`, list it twice in the array as ["10.43.0.231","10.43.0.231",..].** To reproduce the results in the paper, we suggest giving each process 2 CPU cores and 4 GigaBytes of RAM. For example, if you have a machine with 8 cores and 16 GB of RAM, you can run four processes in it by listing its ip address four times in the array. 
-```
-{
-    "Utah": ["10.43.0.231",”10.43.0.231”,"10.43.0.232","10.43.0.233"],
-    "Wisconsin": ["10.43.0.234","10.43.0.235","10.43.0.236"]
-}
-```
-4. Next, the code requires access to the machines on CloudLab/Chameleon. We used the `paramiko` authentication library in Python to remotely access the machines. 
-You need to specify the required SSH key in the `settings.json` file in the `benchmark` folder. 
-Further, the ports specified in the `settings.json` file should be open for communication in the spawned machines. 
-Finally, the username in the file `remote.py` should be changed at 8 occurrences. We hardcoded the username `ubuntu` in the file `remote.py` (We apologize for this inconvenience). Change it to the appropriate username. (Leave it as is if the machines have Ubuntu OS). 
-5. The configuration in `fabfile.py` needs to be changed to run the benchmark with the appropriate number of nodes. After this change, install the required dependencies to run the code in the `benchmark` folder. Pertinent instructions have been given in `benchmark/README.md` file. Then, run `fab install` to install the artifact in all the machines. Ensure that the machines have access to the internet to help access the dependencies necessary for installation. 
-6. Finally, follow the instructions in the `benchmark/README.md` file from Step 5 to run the benchmarks and plot results. 
+## Reproducing results in Figure 1
+For reproducing results of Figure 1 in the paper (phase-wise runtime), use the results of the instances with `n=64` parties. 
 
-We note that the machines on Cloudlab and Chameleon do not mimic our geo-distributed testbed in AWS. This is because the AWS testbed has machines in 5 different continents, which implies a message delivery and round trip time between processes, and lower message bandwidth. As HashRand has a higher communication complexity compared to Dfinity-DVRF, we expect HashRand to have better numbers compared to Dfinity-DVRF on testbeds on Cloudlab and Chameleon. 
+## Reproducing results in Figure 2
+For reproducing results in Figure 2 in the paper (Anonymity set size k vs runtime), use the previous figure's result for `n=64` and add the results of `n=16` parties into the paper.
 
-In case this procedure is too long/tedious, you can verify performance trends of HashRand by spawning a single big machine on Cloudlab/Chameleon and running a local benchmark with specified number of nodes.This would have a similar effect as spawning multiple smaller machines in a single datacenter. Running the benchmark in such a setup would also boost HashRand’s numbers because of higher communication bandwidth and lower round trip time. The computational efficiency of HashRand and its corresponding performance boost can be verified in this setting.
+## Reproducing results in Figure 3
+For reproducing results in Figure 3 in the paper (Scalability plot:), add the results with `n=112` parties to the figure. 
