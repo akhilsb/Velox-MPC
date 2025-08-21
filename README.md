@@ -108,14 +108,27 @@ mpc/
 └── images/            # Project assets (logo, etc.)
 ```
 
-## Key Components
-
-- **Protocol**: Modular implementation of cryptographic protocols for anonymous broadcast
-- **Node Layer**: Main executable that initiates the protocol execution. 
-- **Benchmarking**: Distributed experiments on AWS
-
-The system is designed as a Rust workspace with separate crates for each protocol component, enabling modular development and testing of different MPC phases. 
-
-
 ## Running in AWS
 Please refer to the `benchmark/` directory for instructions to run an AWS benchmark.
+
+## Dependencies in the codebase
+The artifact is organized into the following modules of code.
+
+1. The config directory contains code pertaining to configuring each node in the distributed system. 
+Each node requires information about port to use, network addresses of other nodes, symmetric keys to establish pairwise authenticated channels between nodes, and protocol specific configuration parameters. 
+Code related to managing and parsing these parameters is in the config directory. 
+This library has been borrowed from the libchatter (https://github.com/libdist-rs/libchatter-rs) repository.
+
+2. Networking: This repository uses the libnet-rs (https://github.com/libdist-rs/libnet-rs) networking library. 
+Similar libraries include networking library from the narwhal (https://github.com/MystenLabs/sui/tree/main/narwhal/) repository. The nodes use the tcp protocol to send messages to each other.
+
+3. The protocol directory contains code that implements the building blocks of the codebase. 
+The protocol employs ACSS, AVID, and Sh2t protocols, which build on smaller building blocks like Reliable Broadcast, Reliable Agreement, and Asynchronous consensus. 
+These building blocks have been implemented in the Secure Distributed Computing repository (https://github.com/akhilsb/Secure-Distributed-Computing-Protocols). 
+
+## Architecture
+The following architecture diagram describes the components of Velox and their dependencies. 
+The diagram can be interpreted as a Directed Graph with source vertices.
+Each source vertex has been implemented using the composing building blocks from the Secure Distributed Computing Repository (https://github.com/akhilsb/Secure-Distributed-Computing-Protocols).
+
+<img src="images/MPC_component_flow_transp.png"/>
