@@ -132,3 +132,6 @@ The diagram can be interpreted as a Directed Graph with source vertices.
 Each source vertex has been implemented using the composing building blocks from the Secure Distributed Computing Repository (https://github.com/akhilsb/Secure-Distributed-Computing-Protocols).
 
 <img src="images/MPC_component_flow_transp.png"/>
+
+The components Reliable Broadcast, Asynchronous Verifiable Information Dispersal, and Asynchronous Common Subset have been implemented in Secure Distributed Computing Protocols repository (https://github.com/akhilsb/Secure-Distributed-Computing-Protocols).
+The remaining components have been implemented in this repository. 
