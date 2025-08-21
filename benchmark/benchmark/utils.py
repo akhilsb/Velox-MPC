@@ -36,14 +36,9 @@ class PathMaker:
         return f'nodes-{i}.json'
 
     @staticmethod
-    def t_key_file():
-        #assert isinstance(i, int) and i >= 0
-        return f'data.tar.gz'
-
-    @staticmethod
-    def t_key_secfile(i):
+    def input_file(i):
         assert isinstance(i, int) and i >= 0
-        return f'thresh_keys/sec{i}'
+        return f'inputs/input_{i}.txt'
 
     @staticmethod
     def db_path(i, j=None):
@@ -60,7 +55,6 @@ class PathMaker:
     def primary_log_file(i):
         assert isinstance(i, int) and i >= 0
         return join(PathMaker.logs_path(), f'{i}.log')
-        #return join(PathMaker.logs_path(), f'primary-{i}.log')
 
     @staticmethod
     def worker_log_file(i, j):
@@ -70,15 +64,25 @@ class PathMaker:
         #return join(PathMaker.logs_path(), f'worker-{i}-{j}.log')
 
     @staticmethod
-    def client_log_file(i, j):
+    def client_log_file(i):
         assert isinstance(i, int) and i >= 0
         #assert isinstance(j, int) and i >= 0
         return join(PathMaker.logs_path(), f'{i}.log')
         #return join(PathMaker.logs_path(), f'client-{i}-{j}.log')
 
     @staticmethod
+    def client_local_log_file(i,n,num_messages,batch_size,compr_factor):
+        assert isinstance(i, int) and i >= 0
+        #assert isinstance(j, int) and i >= 0
+        return join('logs',f'party-{i}_n_{n}_{num_messages}_{batch_size}_{compr_factor}.log')
+    
+    @staticmethod
     def syncer_log_file():
         return join(PathMaker.logs_path(), f'syncer.log')
+    
+    @staticmethod
+    def syncer_local_log_file(n,num_messages,batch_size,compr_factor):
+        return join('logs', f'syncer-n_{n}_{num_messages}_{batch_size}_{compr_factor}.log')
     @staticmethod
     def results_path():
         return 'results'

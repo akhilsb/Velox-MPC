@@ -197,23 +197,11 @@ class BenchParameters:
                 raise ConfigError('Missing or invalid number of nodes')
             self.nodes = [int(x) for x in nodes]
 
-            rate = json['rate']
-            rate = rate if isinstance(rate, list) else [rate]
-            if not rate:
-                raise ConfigError('Missing input rate')
-            self.rate = [int(x) for x in rate]
+            self.num_messages = int(json['num_messages'])
 
-            
-            self.workers = int(json['workers'])
+            self.batch_size = int(json['batch_size'])
 
-            if 'collocate' in json:
-                self.collocate = bool(json['collocate'])
-            else:
-                self.collocate = True
-
-            self.tx_size = int(json['tx_size'])
-           
-            self.duration = int(json['duration'])
+            self.compression_factor = int(json['compression_factor'])
 
             self.runs = int(json['runs']) if 'runs' in json else 1
         except KeyError as e:

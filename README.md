@@ -71,12 +71,51 @@ Then, parties start the mixing protocol with `k` inputs.
 
 **Note: Each line in the input file must be less than 31 bytes. This is because the protocol converts the input into a finite field element. The code currently operates on a 254-bit finite field, so if the input is bigger, the encoding will fail.**
 
-8. The termination latencies of each protocol phase are logged into the `syncer.log` file in logs directory. The output of the protocol can be found in individual log files `0.log,...`. 
+8. **Check results in logs**: The termination latencies of each protocol phase are logged into the `syncer-{}.log` file in logs directory. 
+Please wait for a minute before checking the logfile.  
+The output of individual parties can be found in individual log files `party-0-{}.log,...`. 
+The `syncer-{}.log` file will contain phase-wise latencies of the protocol. 
+As mentioned in the paper, the protocol contains four phases: (a) Preprocessing, (b) Online, (c) Verification, and (d) Output. 
+The `syncer` module records the latency (in milliseconds) of each phase and will print it out to the log file in the following format. 
+```
+INFO [node::syncer] All n nodes completed the protocol for ID: 1 with latency [2961, 3241, 3457], status {"Preprocessing"}, and value {[]}
+```
+The array of latencies indicate the time at which each party terminated the protocol. 
+In the output phase, the `syncer-{}.log` file will also contain the output of the protocol - a set of shuffled messages input to the protocol. 
 
-9. Kill all processes running on the requested ports. 
+9. **Kill processes**: Before running the protocol with another configuration, kill all processes running on the requested ports. 
 ```bash
 sudo lsof -ti:15000-19500 | xargs kill -9
 ```
 
+## Repository Structure
+
+This repository implements scalable anonymous broadcast using asynchronous Multi-Party Computation (MPC) with the Velox protocol. Here's a high-level overview of the directory structure:
+
+```
+mpc/
+├── protocol/           # Core MPC protocol implementations
+│   ├── acss_ab/       # Asynchronous Complete Secret Sharing with Abort
+│   ├── avid_ab/       # Asynchronous Verifiable Information Dispersal with Abort
+│   ├── mpc/           # Main MPC protocols(multiplication, online phase, verification)
+│   └── sh2t/          # Degree-2t sharing with Abort
+│
+├── node/              # Executable node implementation and coordination logic
+├── benchmark/         # AWS benchmarking infrastructure and analysis tools
+├── testdata/          # Configuration files and test inputs for different node setups
+├── scripts/           # Execution scripts (test.sh for running protocols)
+├── logs/              # Runtime logs from protocol execution
+└── images/            # Project assets (logo, etc.)
+```
+
+## Key Components
+
+- **Protocol**: Modular implementation of cryptographic protocols for anonymous broadcast
+- **Node Layer**: Main executable that initiates the protocol execution. 
+- **Benchmarking**: Distributed experiments on AWS
+
+The system is designed as a Rust workspace with separate crates for each protocol component, enabling modular development and testing of different MPC phases. 
+
+
 ## Running in AWS
-Please refer to the `benchmark/` directory for instructions to run an AWS benchmark. 
+Please refer to the `benchmark/` directory for instructions to run an AWS benchmark.

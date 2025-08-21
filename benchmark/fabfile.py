@@ -9,43 +9,24 @@ from benchmark.instance import InstanceManager
 from benchmark.remote import Bench, BenchError
 from benchmark.utils import PathMaker
 
-@task
-def local(ctx, debug=True):
-    ''' Run benchmarks on localhost '''
-    bench_params = {
-        'faults': 0,
-        'nodes': 4,
-        'workers': 1,
-        'rate': 50_000,
-        'tx_size': 512,
-        'duration': 20,
-    }
-    node_params = {
-        'header_size': 1_000,  # bytes
-        'max_header_delay': 200,  # ms
-        'gc_depth': 50,  # rounds
-        'sync_retry_delay': 10_000,  # ms
-        'sync_retry_nodes': 3,  # number of nodes
-        'batch_size': 500_000,  # bytes
-        'max_batch_delay': 200  # ms
-    }
-    try:
-        ret = LocalBench(bench_params, node_params).run(debug)
-        #print(ret.result())
-    except BenchError as e:
-        Print.error(e)
-
+n = 16
+num_messages = 256
+batch_size = 1000
+compression_factor = 10
 
 @task
 def log_v(ctx, debug=True):
     ''' Run benchmarks on localhost '''
     bench_params = {
         'faults': 0,
-        'nodes': 112,
+        'nodes': n,
         'workers': 1,
         'rate': 8_000,
         'tx_size': 256,
         'duration': 20,
+        'num_messages': num_messages,
+        'batch_size': batch_size,
+        'compression_factor': compression_factor
     }
     node_params = {
         'header_size': 1_000,  # bytes
@@ -67,7 +48,7 @@ def log_v(ctx, debug=True):
 
 
 @task
-def create(ctx, nodes=14):
+def create(ctx, nodes=n):
     ''' Create a testbed'''
     try:
         InstanceManager.make().create_instances(nodes)
@@ -85,7 +66,7 @@ def destroy(ctx):
 
 
 @task
-def start(ctx, max=14):
+def start(ctx, max=n):
     ''' Start at most `max` machines per data center '''
     try:
         InstanceManager.make().start_instances(max)
@@ -125,25 +106,13 @@ def remote(ctx, debug=False):
     ''' Run benchmarks on AWS '''
     bench_params = {
         'faults': 0,
-        'nodes': [112],
-        'workers': 1,
-        'collocate': True,
-        'rate': [10_000, 110_000],
-        'tx_size': 512,
-        'duration': 300,
-        'runs': 2,
-    }
-    node_params = {
-        'header_size': 1_000,  # bytes
-        'max_header_delay': 200,  # ms
-        'gc_depth': 50,  # rounds
-        'sync_retry_delay': 10_000,  # ms
-        'sync_retry_nodes': 3,  # number of nodes
-        'batch_size': 500_000,  # bytes
-        'max_batch_delay': 200  # ms
+        'nodes': [n],
+        'num_messages': num_messages,
+        'batch_size': batch_size,
+        'compression_factor': compression_factor
     }
     try:
-        Bench(ctx).run(bench_params, node_params, debug)
+        Bench(ctx).run(bench_params, debug)
     except BenchError as e:
         Print.error(e)
 
@@ -152,28 +121,15 @@ def rerun(ctx, debug=False):
     ''' Run benchmarks on AWS '''
     bench_params = {
         'faults': 0,
-        'nodes': [112],
-        'workers': 1,
-        'collocate': True,
-        'rate': [10_000, 110_000],
-        'tx_size': 512,
-        'duration': 300,
-        'runs': 2,
-    }
-    node_params = {
-        'header_size': 1_000,  # bytes
-        'max_header_delay': 200,  # ms
-        'gc_depth': 50,  # rounds
-        'sync_retry_delay': 10_000,  # ms
-        'sync_retry_nodes': 3,  # number of nodes
-        'batch_size': 500_000,  # bytes
-        'max_batch_delay': 200  # ms
+        'nodes': [n],
+        'num_messages': num_messages,
+        'batch_size': batch_size,
+        'compression_factor': compression_factor
     }
     try:
-        Bench(ctx).justrun(bench_params, node_params, debug)
+        Bench(ctx).justrun(bench_params, debug)
     except BenchError as e:
         Print.error(e)
-
 
 @task
 def plot(ctx):
@@ -207,24 +163,12 @@ def logs(ctx):
     ''' Run benchmarks on AWS '''
     bench_params = {
         'faults': 0,
-        'nodes': [112],
-        'workers': 1,
-        'collocate': True,
-        'rate': [10_000, 110_000],
-        'tx_size': 512,
-        'duration': 300,
-        'runs': 2,
-    }
-    node_params = {
-        'header_size': 1_000,  # bytes
-        'max_header_delay': 200,  # ms
-        'gc_depth': 50,  # rounds
-        'sync_retry_delay': 10_000,  # ms
-        'sync_retry_nodes': 3,  # number of nodes
-        'batch_size': 500_000,  # bytes
-        'max_batch_delay': 200  # ms
+        'nodes': [n],
+        'num_messages': num_messages,
+        'batch_size': batch_size,
+        'compression_factor': compression_factor
     }
     try:
-        print(Bench(ctx).pull_logs(bench_params,node_params))
+        Bench(ctx).pull_logs(bench_params)
     except ParseError as e:
         Print.error(BenchError('Failed to parse logs', e))

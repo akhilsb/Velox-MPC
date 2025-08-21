@@ -1,0 +1,8 @@
+rm nodes-*.json
+rm syncer
+rm syncer.json
+rm client.json
+rm ip_file
+rm config
+rm node
+rm benchmark_client

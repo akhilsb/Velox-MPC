@@ -3,8 +3,9 @@ for i in {1..3}
 do
 	echo "Running iteration $i"
 	fab rerun
-	sleep 135s
+	sleep 30s
 	fab logs
-	mv syncer.log syncer-$i.log
+	mkdir logs/$i
+	mv logs/*.log logs/$i/
 	fab kill
 done

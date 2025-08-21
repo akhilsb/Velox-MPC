@@ -1,5 +1,5 @@
 # Running Benchmarks
-Forked from (hashrand-rs) [https://github.com/akhilsb/hashrand-rs].
+Based on [Narwhal](https://github.com/facebookresearch/narwhal). 
 
 This document explains how to benchmark the codebase and read benchmarks' results. It also provides a step-by-step tutorial to run benchmarks on [Amazon Web Services (AWS)](https://aws.amazon.com) accross multiple data centers (WAN).
 
@@ -32,24 +32,24 @@ $ ssh-keygen -f ~/.ssh/aws
 ```
 
 ### Step 3. Configure the testbed
-The file [settings.json](https://github.com/akhilsb/hashrand-rs/blob/master/benchmark/settings.json) (located in [hashrand-rs/benchmarks](https://github.com/akhilsb/hashrand-rs/blob/master/benchmark)) contains all the configuration parameters of the testbed to deploy. Its content looks as follows:
+The file [settings.json](https://github.com/akhilsb/Velox-MPC/blob/master/benchmark/settings.json) (located in [Velox-MPC/benchmarks](https://github.com/akhilsb/Velox-MPC/blob/master/benchmark)) contains all the configuration parameters of the testbed to deploy. Its content looks as follows:
 ```json
 {
     "key": {
         "name": "aws",
         "path": "/absolute/key/path"
     },
-    "port": 8500,
-    "client_base_port": 9000,
-    "client_run_port": 9500,
+    "port": 5000,
+    "client_base_port": 7500,
+    "client_run_port": 8000,
     "repo": {
-        "name": "hashrand-rs",
-        "url": "https://github.com/akhilsb/hashrand-rs.git",
+        "name": "Velox-MPC",
+        "url": "https://github.com/akhilsb/Velox-MPC.git",
         "branch": "master"
     },
     "instances": {
-        "type": "t3a.medium",
-        "regions": ["us-east-1","us-east-2","us-west-1","us-west-2","ca-central-1", "eu-west-1", "ap-southeast-1", "ap-northeast-1"]
+        "type": "c5.large",
+        "regions": ["us-east-1"]
     }
 }
 ```
@@ -65,17 +65,17 @@ Enter the name of your SSH key; this is the name you specified in the AWS web co
 
 The second block (`ports`) specifies the TCP ports to use:
 ```json
-"port": 8500,
-"client_base_port": 9000,
-"client_run_port": 9500,
+"port": 5000,
+"client_base_port": 7500,
+"client_run_port": 8000,
 ```
-The artifact requires a number of TCP ports for communication between the processes. Note that the script will open a large port range (5000-10000) to the WAN on all your AWS instances. 
+The artifact requires a number of TCP ports for communication between the processes. Note that the script will open a large port range (5000-10000) to the LAN on all your AWS instances. 
 
 The third block (`repo`) contains the information regarding the repository's name, the URL of the repo, and the branch containing the code to deploy: 
 ```json
 "repo": {
-    "name": "hashrand-rs",
-    "url": "https://github.com/akhilsb/hashrand-rs.git",
+    "name": "Velox-MPC",
+    "url": "https://github.com/akhilsb/Velox-MPC.git",
     "branch": "master"
 },
 ```
@@ -84,17 +84,16 @@ Remember to update the `url` field to the name of your repo. Modifying the branc
 The the last block (`instances`) specifies the [AWS instance type](https://aws.amazon.com/ec2/instance-types) and the [AWS regions](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html#concepts-available-regions) to use:
 ```json
 "instances": {
-    "type": "t3a.medium",
-    "regions": ["us-east-1","us-east-2","us-west-1","us-west-2","ca-central-1", "eu-west-1", "ap-southeast-1", "ap-northeast-1"]
+    "type": "c5.large",
+    "regions": ["us-east-1"]
 }
 ```
-The instance type selects the hardware on which to deploy the testbed. For example, `t3a.medium` instances come with 2 vCPU (2 physical cores), and 4 GB of RAM. The python scripts will configure each instance with 300 GB of SSD hard drive. The `regions` field specifies the data centers to use. If you require more nodes than data centers, the python scripts will distribute the nodes as equally as possible amongst the data centers. All machines run a fresh install of Ubuntu Server 20.04.
+The instance type selects the hardware on which to deploy the testbed. For example, `c5.large` instances come with 2 vCPU (2 physical cores), and 4 GB of RAM. The python scripts will configure each instance with 300 GB of SSD hard drive. The `regions` field specifies the data centers to use. If you require more nodes than data centers, the python scripts will distribute the nodes as equally as possible amongst the data centers. All machines run a fresh install of Ubuntu Server 24.04.
 
 ### Step 4. Create a testbed
-The AWS instances are orchestrated with [Fabric](http://www.fabfile.org) from the file [fabfile.py](https://github.com/akhil-sb/hashrand-rs/blob/master/benchmark/fabfile.py) (located in [hashrand-rs/benchmarks](https://github.com/akhilsb/hashrand-rs/blob/master/benchmark)); you can list all possible commands as follows:
-```
-$ cd hashrand-rs/benchmark
-$ fab --list
+The AWS instances are orchestrated with [Fabric](http://www.fabfile.org) from the file [fabfile.py](https://github.com/akhil-sb/Velox-MPC/blob/master/benchmark/fabfile.py) (located in [hashrand-rs/benchmarks](https://github.com/akhilsb/Velox-MPC/blob/master/benchmark)); you can list all possible commands as follows:
+```bash
+fab --list
 ```
 The command `fab create` creates new AWS instances; open [fabfile.py](https://github.com/akhilsb/hashrand-rs/blob/master/benchmark/fabfile.py) and locate the `create` task:
 ```python
@@ -102,45 +101,57 @@ The command `fab create` creates new AWS instances; open [fabfile.py](https://gi
 def create(ctx, nodes=2):
     ...
 ```
-The parameter `nodes` determines how many instances to create in *each* AWS region. That is, if you specified 5 AWS regions as in the example of step 3, setting `nodes=2` will creates a total of 16 machines:
-```
-$ fab create
+The parameter `nodes` determines how many instances to create in *each* AWS region. That is, if you specified 1 AWS region as in the example of step 3, setting `nodes=16` will create 16 machines:
+```bash
+fab create
 
 Creating 16 instances |██████████████████████████████| 100.0% 
 Waiting for all instances to boot...
 Successfully created 16 new instances
 ```
+
 You can then clone the repo and install rust on the remote instances with `fab install`:
-```
-$ fab install
+```bash
+fab install
 
 Installing rust and cloning the repo...
 Initialized testbed of 16 nodes
 ```
+
 This may take a long time as the command will first update all instances.
 The commands `fab stop` and `fab start` respectively stop and start the testbed without destroying it (it is good practice to stop the testbed when not in use as AWS can be quite expensive); and `fab destroy` terminates all instances and destroys the testbed. Note that, depending on the instance types, AWS instances may take up to several minutes to fully start or stop. The command `fab info` displays a nice summary of all available machines and information to manually connect to them (for debug).
 
 ### Step 5. Run a benchmark
-After setting up the testbed, running a benchmark on AWS is similar to running it locally (see [Run Local Benchmarks](https://github.com/akhilsb/hashrand-rs/tree/master/benchmark#local-benchmarks)). Locate the task `remote` in [fabfile.py](https://github.com/akhilsb/hashrand-rs/blob/master/benchmark/fabfile.py):
-```python
-@task
-def remote(ctx):
-    ...
-```
-Change the number of nodes to run in the `remote` function. Run the benchmark with the following command. 
-```
-$ fab remote
-```
-This command first updates all machines with the latest commit of the GitHub repo and branch specified in your file [settings.json](https://github.com/akhilsb/hashrand-rs/blob/master/benchmark/settings.json) (step 3); this ensures that benchmarks are always run with the latest version of the code. It then generates and uploads the configuration files to each machine, and runs the benchmarks with the specified parameters. Make sure to change the number of nodes in the `remote` function. The input parameters for hashrand can be set in the `_config` function in the benchmark/remote.py file in the `benchmark` folder. 
+After setting up the testbed, modify the parameters in the first 4 lines of `fabfile.py` file. Set four parameters:
+1. Number of parties `n`
+2. Number of messages to broadcast or anonymity set size `k`
+3. Batch size - Number of secrets to be batched within each ACSS instance `batch_size`
+4. Compression factor - A parameter controlling the tradeoff between rounds and computation in the verification phase. Check the paper for more details. 
 
-The parameters required for HashRand can be set in lines 271 (Batch size $\beta$) and 272 (Pipelining Frequency $\phi$) in the file `benchmark/remote.py`. Change these values to vary the configuration parameters. 
+But before starting the protocol, create input files containing the messages to broadcast. 
+A script has been included in the `inputs/` directory for input generation. 
+```bash
+python3 inp_gen.py
+```
+Then, set the following parameters in `fabfile.py`. 
+```python
+n = 16
+num_messages = 256
+batch_size = 1000
+compression_factor = 10
+```
+This command first updates all machines with the latest commit of the GitHub repo and branch specified in the [settings.json](https://github.com/akhilsb/Velox-MPC/blob/master/benchmark/settings.json) (step 3) file; this ensures that benchmarks are always run with the latest version of the code. 
+It then generates and uploads the configuration files to each machine, and runs the benchmarks with the specified parameters. Make sure to change the number of nodes in the `remote` function. 
+The input parameters for the protocol can be set in the `_config` function in the benchmark/remote.py file in the `benchmark` folder. 
 
 ### Step 6: Download logs
-The following command downloads the log file from the `syncer` titled `syncer.log`. 
+The following command downloads the log file from the `syncer` titled `syncer-n_{num_parties}_{num_messages}_{batch_size}_{compression_factor}.log`. 
+```bash
+fab logs
 ```
-$ fab logs
-```
-The `syncer.log` file contains the details about the latency of the protocol and the outputs of the nodes. Note that this log file needs to be downloaded only after allowing the protocol sufficient time to terminate (Ideally within 5 minutes). If anything goes wrong during a benchmark, you can always stop it by running `fab kill`.
+This file contains the details about the latency of the protocol and the outputs of the nodes. 
+Note that this log file needs to be downloaded only after allowing the protocol sufficient time to terminate (Ideally within 5 minutes). I
+f anything goes wrong during a benchmark, you can always stop it by running `fab kill`.
 
 Be sure to kill the prior benchmark using the following command before running a new benchmark. 
 ```
@@ -149,36 +160,10 @@ $ fab kill
 
 ### Running the benchmark for different numbers of nodes
 After running the benchmarks for a given number of nodes, destroy the testbed with the following command. 
-```
-$ fab destroy
+```bash
+fab destroy
 ```
 This command destroys the testbed and terminates all created AWS instances.
-
-## Running Dfinity
-The `run_primary` function in the `commands.py` file specifies which protocol to run. Currently, the function runs the `hashrand` protocol denoted by the keyword `del`, passed to the program using the `--vsstype` functionality. Change this `bea` keyword to `glow` run Dfinity. 
-
-In addition to the previous changes, the Dfinity protocol requires the presence of a file with the name `tkeys.tar.gz`, which is a compressed file containing the BLS public key as `pub`, partial secret key shares as `sec0,...,sec{n-1}`, and corresponding public keys as `pub0,...,pubn-1`. This repository contains these keys for values of `n=16,40,64,136`. Before running Dfinity, run the following command to copy the BLS keys for the code to access. 
-```
-$ cp tkeys-{n}.tar.gz tkeys.tar.gz
-```
-After making these changes, retrace the procedure from Step 5 to run the protocols. 
-
-# Reproducing results in the paper
-We ran HashRand at configuration of $\beta=200,\phi=5$ (set on line 271 and 272 in the file `remote.py`) at $n=16$, $\beta=100,\phi=10$ at $n=40$, $\beta=200,\phi=30$ at $n=64$, and $\beta=100,\phi=50$ at $n=136$, at $n=16,40,64,136$ nodes in a geo-distributed testbed of `t3a.medium` nodes spread across 8 regions:  N. Virginia, Ohio, N. California, Oregon, Canada, Ireland, Singapore, and Tokyo (These values are pre-configured in the `settings.json` file).
-
-We ran Dfinity with the same configuration. However, Dfinity's runtime is independent of the inputs and input parameters. Remember to change the protocol to run by modifying `commands.py` file on Line 38 (change `bea` to `glow`) before running the benchmark. 
-
-In summary, perform the following steps before running a protocol on a given set of values. 
-
-1. Follow steps 1 through 4 to create a testbed of $n=16$ nodes. In step 4, set `nodes=2` in the `create` function to create a testbed of 16 nodes on AWS. 
-2. Change the `remote.py` file. Set $\beta$, $\phi$ on lines 271 and 272. 
-3. Change the `commands.py` file on line 38. Pass the parameter `bea`, `glow` into the `--vsstype` parameter for running HashRand, and Dfinity, respectively. 
-4. (For running Dfinity) Paste the `tkeys.tar.gz` file as specified in line 162 of this README.md file. 
-5. Run the benchmark from Step 5. Wait for 5 minutes and download the log file using the command `fab logs`. 
-6. Run `fab kill` to kill any previous benchmark. 
-7. Retrace this summary procedure from bullet point 2 to run a different benchmark on the same testbed. 
-8. After running all benchmarks at this $n$ value, run `fab destroy` to terminate all instances.  
-9. Retrace this summary procedure from bullet point 1 to run a benchmark on a testbed with different number of nodes. To reproduce the results from the paper, run the benchmarks on $n=16,40,64,136$ nodes. The `nodes` parameter in the `create` function must be set to `2,5,8,17` to create testbeds of these sizes in a geo-distributed manner. 
 
 # Artifact Evaluation on Cloudlab/Custom testbeds
 It is possible to evaluate our artifact on CloudLab/Chameleon. However, it would require us to change a few lines of code in the submitted artifact. The benchmarking code in the current artifact works in the following way.
