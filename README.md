@@ -39,9 +39,11 @@ If the build fails because of lack of `lgmp` files, install the `libgmp3-dev` de
 sudo apt-get install libgmp3-dev
 ```
 
-5. **Generate Configuration Files**: Next, generate configuration files for nodes in the system using the following command. Make sure to create the directory (in this example, `testdata/hyb_4/`) before running this command. 
+5. **Generate Configuration Files**: Next, generate configuration files for nodes in the system using the following command. Run the following command to create configuration files. 
 ```bash
-./target/release/genconfig --base_port 15000 --client_base_port 19000 --client_run_port 19500 --NumNodes 4 --blocksize 100 --delay 100 --target testdata/hyb_4/ --local true
+mkdir testdata/hyb_4
+mkdir logs/Make sure to create the directory (in this example, `testdata/hyb_4/`) and the logs directory (`logs/`). 
+./target/release/config --base_port 15000 --client_base_port 19000 --client_run_port 19500 --NumNodes 4 --blocksize 100 --delay 100 --target testdata/hyb_4/ --local true
 ```
 
 ## Running the code
@@ -53,17 +55,18 @@ This command generates input text files of the form `input_{$i}.txt` in the `tes
 
 7. **Run the protocol**: After generating the configuration files, run the script `test.sh` in the scripts folder.
 The protocol takes the following command line arguments.
+- num_parties: The number of parties $n$ participating in the protocol. 
 - num_messages: The anonymity set size `k`, which corresponds to the number of inputs to mix.  
 - batchsize: ACSS parameter deciding number of secrets to be batched within each ACSS instance. 
 - compression_factor: The degree of the polynomial in the multiplication tuple verification phase. A higher degree implies lower round complexity but higher computation complexity. 
 ```bash
-./scripts/test.sh {num_messages} {batchsize} {compression_factor}
+./scripts/test.sh {num_parties} {num_messages} {batchsize} {compression_factor}
 ```
-Substitute `{num_messages}` with the `k` value, where `k` is the number of messages.  
+Substitute `{num_parties}` with the number of parties and `{num_messages}` with the `k` value, where `k` is the number of messages.  
 Example values include `k=256,512,1024...`. 
 An example run can be the following. 
 ```bash
-./scripts/test.sh 256 1000 10
+./scripts/test.sh 4 256 1000 10
 ```
 This script starts `n=4` parties. 
 Each party $i$ reads the first `k/n` inputs from its input file `testdata/inputs/inputs_{$i}.txt`. 
