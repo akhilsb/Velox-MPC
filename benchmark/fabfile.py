@@ -9,9 +9,9 @@ from benchmark.instance import InstanceManager
 from benchmark.remote import Bench, BenchError
 from benchmark.utils import PathMaker
 
-n = 64
+n = 16
 num_messages = 256
-batch_size = 500
+batch_size = 1000
 compression_factor = 10
 
 @task

@@ -139,6 +139,7 @@ After setting up the testbed, modify the parameters in the first 4 lines of `fab
 But before starting the protocol, create input files containing the messages to broadcast. 
 A script has been included in the `inputs/` directory for input generation. 
 ```bash
+cd inputs/
 python3 inp_gen.py
 ```
 Then, set the following parameters in `fabfile.py`. 
@@ -153,12 +154,13 @@ It then generates and uploads the configuration files to each machine, and runs 
 The input parameters for the protocol can be set in the `_config` function in the benchmark/remote.py file in the `benchmark` folder. 
 
 ### Step 6: Download logs and Compile results
-The following command downloads the log file from the `syncer` titled `syncer-n_{num_parties}_{num_messages}_{batch_size}_{compression_factor}.log`. 
+Download log files after allowing the protocol sufficient time to terminate (Ideally within 2 minutes). 
+The following command downloads the log file from the `syncer` titled `syncer-n_{num_parties}_{num_messages}_{batch_size}_{compression_factor}.log` into the `benchmark/logs/` directory. 
 ```bash
 fab logs
 ```
 This file contains the details about the latency of the protocol and the outputs of the nodes. 
-Note that this log file needs to be downloaded only after allowing the protocol sufficient time to terminate (Ideally within 5 minutes). If anything goes wrong during a benchmark, you can always stop it by running `fab kill`.
+If anything goes wrong during a benchmark, you can always stop it by running `fab kill`.
 Once this command terminates, cd into the `logs/` directory and run the `stats.py` file to generate results. 
 ```bash
 python3 compile_results.py
