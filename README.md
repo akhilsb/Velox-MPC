@@ -39,10 +39,10 @@ If the build fails because of lack of `lgmp` files, install the `libgmp3-dev` de
 sudo apt-get install libgmp3-dev
 ```
 
-5. **Generate Configuration Files**: Next, generate configuration files for nodes in the system using the following command. Run the following command to create configuration files. 
+5. **Generate Configuration Files**: Next, generate configuration files for nodes in the system using the following command. Run the following commands to create configuration files and necessary directories for logs storage. 
 ```bash
 mkdir testdata/hyb_4
-mkdir logs/Make sure to create the directory (in this example, `testdata/hyb_4/`) and the logs directory (`logs/`). 
+mkdir logs/
 ./target/release/config --base_port 15000 --client_base_port 19000 --client_run_port 19500 --NumNodes 4 --blocksize 100 --delay 100 --target testdata/hyb_4/ --local true
 ```
 
