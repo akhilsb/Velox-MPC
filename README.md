@@ -2,7 +2,7 @@
 
 <img src="images/velox_logo.png" width="400"/>
 
-This repository implements anonymous broadcast using Velox, an asynchronous MPC protocol. This code has been written as a research prototype and has not been vetted for security. Therefore, this repository can contain serious security vulnerabilities. Please use at your own risk. 
+This repository implements anonymous broadcast using Velox, an asynchronous MPC protocol accepted for publication in ACM CCS 2025. This code has been written as a research prototype and has not been vetted for security. Therefore, this repository can contain serious security vulnerabilities. Please use at your own risk. 
 
 # Quick Start
 We describe the steps to run this artifact. 
@@ -92,7 +92,21 @@ In the output phase, the `syncer-{}.log` file will also contain the output of th
 sudo lsof -ti:15000-19500 | xargs kill -9
 ```
 
-## Repository Structure
+# Comparison with other works
+Velox is an asynchronous MPC protocol with Fairness that can tolerate $t<\frac{n}{3}$ faulty parties. 
+The protocol will terminate when no party behaves maliciously. 
+On the other hand, the adversary may abort the protocol - i.e. it can prevent honest parties from getting the output, but will not learn anything about the output of the computation. 
+Velox makes progress at network speed and can be deployed in unreliable and unpredictable networks like the internet. 
+In contrast, protocols like MP-SPDZ and Turbopack require the network to be synchronous, with a time bound on message delivery, for retaining safety. 
+
+Velox also does not rely on a trusted setup to run preprocessing. 
+The protocol starts with a preprocessing phase where it prepares the necessary sharings. 
+In contrast, prior asynchronous MPC protocols like HoneyBadgerMPC either have a non-robust synchronous preprocessing phase or rely on a trusted dealer to produce Beaver triples. 
+A recent work DumboMPC (USENIX Security'25) improved HoneyBadgerMPC's preprocessing phase.
+But their protocol's non-robust preprocessing phase requires $36\times$ the latency of Velox, just to prepare Beaver triples. 
+Therefore, Velox is most suited for real-time performance at network speed, in wide-area networks like the internet. 
+
+# Repository Structure
 
 This repository implements scalable anonymous broadcast using asynchronous Multi-Party Computation (MPC) with the Velox protocol. Here's a high-level overview of the directory structure:
 
@@ -112,10 +126,20 @@ mpc/
 └── images/            # Project assets (logo, etc.)
 ```
 
-## Running in AWS
-Please refer to the `benchmark/` directory for instructions to run an AWS benchmark.
+# Running in AWS
+Please refer to the `benchmark/` directory for instructions to run benchmarks on AWS.
 
-## Dependencies in the codebase
+## Performance Results
+The following results were achieved in a single-region AWS testbed with `n=16` parties, each party running on a `c5.4xlarge` device with 16 cores and 32 GB RAM.
+
+| k (Anonymity Set Size) | Time (seconds) |
+|------------------------|----------------|
+| 256                    | 1.32           |
+| 512                    | 2.40           |
+| 1024                   | 5.62           |
+
+
+# Dependencies in the codebase
 The artifact is organized into the following modules of code.
 
 1. The config directory contains code pertaining to configuring each node in the distributed system. 
@@ -130,7 +154,7 @@ Similar libraries include networking library from the narwhal (https://github.co
 The protocol employs ACSS, AVID, and Sh2t protocols, which build on smaller building blocks like Reliable Broadcast, Reliable Agreement, and Asynchronous consensus. 
 These building blocks have been implemented in the Secure Distributed Computing repository (https://github.com/akhilsb/Secure-Distributed-Computing-Protocols). 
 
-## Architecture
+# Architecture
 The following architecture diagram describes the components of Velox and their dependencies. 
 The diagram can be interpreted as a Directed Graph with source vertices.
 Each source vertex has been implemented using the composing building blocks from the Secure Distributed Computing Repository (https://github.com/akhilsb/Secure-Distributed-Computing-Protocols).
