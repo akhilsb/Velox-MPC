@@ -50,7 +50,7 @@ mkdir logs/
 6. **Generate Inputs**: Generate files containing the inputs of each party. These files need to be placed in `testdata/inputs/` directory. A sample code in `python` has been provided to automatically generate these inputs. Navigate to the `testdata/inputs/` directory and run the following command. 
 ```bash
 cd testdata/inputs/
-python3 gen_inputs.py
+python3 inp_gen.py
 ```
 This command generates input text files of the form `input_{$i}.txt` in the `testdata/inputs/` folder. 
 
