@@ -2,7 +2,20 @@
 
 <img src="images/velox_logo.png" width="400"/>
 
-This repository implements anonymous broadcast using Velox, an asynchronous MPC protocol accepted for publication in ACM CCS 2025. This code has been written as a research prototype and has not been vetted for security. Therefore, this repository can contain serious security vulnerabilities. Please use at your own risk. 
+This repository implements anonymous broadcast using Velox, an asynchronous MPC protocol accepted for publication in ACM CCS 2025. The paper is available [here](https://eprint.iacr.org/2025/1630). 
+If you utilize this repository, please consider citing our work. 
+```
+@misc{bandarupalli2025velox,
+      author = {Akhil Bandarupalli and Xiaoyu Ji and Aniket Kate and Chen-Da Liu-Zhang and Daniel Pollmann and Yifan Song},
+      title = {Velox: Scalable Fair Asynchronous MPC from Lightweight Cryptography},
+      howpublished = {ACM CCS 2025},
+      year = {2025},
+      note = {\url{https://eprint.iacr.org/2025/1630}},
+      url = {https://eprint.iacr.org/2025/1630}
+}
+```
+
+This code has been written as a research prototype and has not been vetted for security. Therefore, this repository can contain serious security vulnerabilities. Please use at your own risk. 
 
 # Quick Start
 We describe the steps to run this artifact. 
@@ -50,7 +63,7 @@ mkdir logs/
 6. **Generate Inputs**: Generate files containing the inputs of each party. These files need to be placed in `testdata/inputs/` directory. A sample code in `python` has been provided to automatically generate these inputs. Navigate to the `testdata/inputs/` directory and run the following command. 
 ```bash
 cd testdata/inputs/
-python3 gen_inputs.py
+python3 inp_gen.py
 ```
 This command generates input text files of the form `input_{$i}.txt` in the `testdata/inputs/` folder. 
 
