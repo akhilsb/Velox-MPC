@@ -1,7 +1,7 @@
 {
     "key": {
-        "name": "aws",
-        "path": "/home/akhil/.ssh/aws"
+        "name": "ccs_artifact",
+        "path": "/home/akhil/.ssh/ccs_artifact.pem"
     },
     "port": 5000,
     "client_base_port": 7500,
