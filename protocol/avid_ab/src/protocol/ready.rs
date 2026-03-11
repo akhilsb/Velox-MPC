@@ -59,7 +59,7 @@ impl Context {
             }
         }
 
-        if shards_map.len() == self.num_faults + 1 && avid_context.message.is_none(){
+        if shards_map.len() == self.num_nodes-2*self.num_faults && avid_context.message.is_none(){
             // Sent ECHOs and getting a ready message for the same ECHO
             log::info!("Received enough messages for interpolating AVID message in instance {} sent by origin {}", instance_id, origin);
             let mut shards:Vec<Option<Vec<u8>>> = Vec::new();
@@ -88,7 +88,7 @@ impl Context {
             if merkle_tree.root() == proof_master_root.unwrap().item(){
                 log::info!("Reconstructed Merkle root and message successfully with validation for instance id {} from sender {}", instance_id, origin);
                 let mut message = Vec::new();
-                for i in 0..self.num_faults+1{
+                for i in 0..self.num_nodes-2*self.num_faults{
                     message.extend(shards.get(i).clone().unwrap());
                 }
                 avid_context.message = Some(message.clone());
